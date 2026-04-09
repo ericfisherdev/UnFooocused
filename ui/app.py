@@ -11,6 +11,7 @@ import base64
 import logging
 import os
 from pathlib import Path
+from typing import Annotated
 
 from urllib.parse import urlsplit
 
@@ -83,7 +84,7 @@ async def lora_library_data():
 
 
 @app.get("/api/lora-trigger-words")
-async def lora_trigger_words(filename: str = Query(..., description="LoRA filename or relative path")):
+async def lora_trigger_words(filename: Annotated[str, Query(description="LoRA filename or relative path")]):
     """Get trigger words for a specific LoRA."""
     trigger_words = lora_metadata.get_trigger_words_for_filename(filename)
     return {"filename": filename, "trigger_words": trigger_words}
