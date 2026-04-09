@@ -104,6 +104,25 @@ class TestDiscoverFilesEmptyPaths:
         result = _discover_files([str(tmp_path)])
         assert result == []
 
+    def test_skips_unreadable_directory(self, tmp_path):
+        """PermissionError on listdir should be logged and skipped."""
+        readable_dir = tmp_path / "readable"
+        unreadable_dir = tmp_path / "unreadable"
+        readable_dir.mkdir()
+        unreadable_dir.mkdir()
+        (readable_dir / "good.safetensors").write_bytes(b"\x00")
+        (unreadable_dir / "hidden.safetensors").write_bytes(b"\x00")
+        unreadable_dir.chmod(0o000)
+
+        from modules.config import _discover_files
+
+        try:
+            result = _discover_files([str(unreadable_dir), str(readable_dir)])
+            # Should not crash — skips unreadable, still finds readable
+            assert "good.safetensors" in result
+        finally:
+            unreadable_dir.chmod(0o755)
+
 
 class TestUpdateFilenames:
     """Cycle 3: update functions refresh the module-level lists."""
