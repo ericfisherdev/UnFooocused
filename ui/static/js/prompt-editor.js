@@ -57,7 +57,7 @@ function promptEditor({ mode = 'positive', value = '' } = {}) {
         onPaste(event) {
             event.preventDefault();
             const text = event.clipboardData.getData('text/plain');
-            document.execCommand('insertText', false, text);
+            document.execCommand('insertText', false, text); // NOSONAR — no standard replacement for execCommand in contenteditable
         },
 
         onFocus() {
@@ -90,7 +90,7 @@ function promptEditor({ mode = 'positive', value = '' } = {}) {
             if (!el) return;
 
             el.focus();
-            const sel = window.getSelection();
+            const sel = globalThis.getSelection();
             if (sel && sel.rangeCount > 0) {
                 const range = sel.getRangeAt(0);
                 // Add comma separator if not inserting at the start

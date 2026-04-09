@@ -70,4 +70,4 @@ const GalleryCompare = (() => {
     return { computeDiff, formatKey, formatValue };
 })();
 
-window.GalleryCompare = GalleryCompare;
+globalThis.GalleryCompare = GalleryCompare;

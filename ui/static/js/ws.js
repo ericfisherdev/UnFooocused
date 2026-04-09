@@ -12,6 +12,22 @@
 const WS_MAX_BACKOFF_MS = 30_000;
 const WS_INITIAL_BACKOFF_MS = 1_000;
 
+function getWsUrl() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${location.host}/ws/generation`;
+}
+
+/**
+ * Parse "Image X/Y" from progress text to extract current/total image counts.
+ * Returns { current, total } or null if the pattern is not found.
+ */
+function parseImageProgress(text) {
+    if (!text) return null;
+    const match = text.match(/Image\s+(\d+)\/(\d+)/i);
+    if (!match) return null;
+    return { current: Number.parseInt(match[1], 10), total: Number.parseInt(match[2], 10) };
+}
+
 document.addEventListener('alpine:init', () => {
 
     const gen = Alpine.store('generation');
@@ -20,15 +36,8 @@ document.addEventListener('alpine:init', () => {
     let backoff = WS_INITIAL_BACKOFF_MS;
     let reconnectTimer = null;
     let hasConnectedBefore = false;
-    let connectionState = 'disconnected'; // connected | connecting | reconnecting | disconnected
-
-    function getWsUrl() {
-        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${proto}//${location.host}/ws/generation`;
-    }
 
     function setConnectionState(state) {
-        connectionState = state;
         Alpine.store('ui').connectionState = state;
     }
 
@@ -75,17 +84,6 @@ document.addEventListener('alpine:init', () => {
         }, backoff);
     }
 
-    /**
-     * Parse "Image X/Y" from progress text to extract current/total image counts.
-     * Returns { current, total } or null if the pattern is not found.
-     */
-    function parseImageProgress(text) {
-        if (!text) return null;
-        const match = text.match(/Image\s+(\d+)\/(\d+)/i);
-        if (!match) return null;
-        return { current: parseInt(match[1], 10), total: parseInt(match[2], 10) };
-    }
-
     function handleMessage(msg) {
         switch (msg.type) {
             case 'preview': {
@@ -106,13 +104,13 @@ document.addEventListener('alpine:init', () => {
             case 'results':
                 // Intermediate results (images completed so far)
                 gen.isGenerating = true;
-                window.dispatchEvent(new CustomEvent('generation-results', {
+                globalThis.dispatchEvent(new CustomEvent('generation-results', {
                     detail: { images: msg.images }
                 }));
                 break;
 
             case 'finish':
-                window.dispatchEvent(new CustomEvent('generation-finish', {
+                globalThis.dispatchEvent(new CustomEvent('generation-finish', {
                     detail: { images: msg.images }
                 }));
                 gen.reset();

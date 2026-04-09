@@ -11,8 +11,8 @@ function settingsState() {
         baseModel: '',
         refinerModel: 'None',
         refinerSwitch: 0.8,
-        guidanceScale: 4.0,
-        sharpness: 2.0,
+        guidanceScale: 4,
+        sharpness: 2,
         sampler: 'dpmpp_2m_sde_gpu',
         scheduler: 'karras',
         clipSkip: 2,
@@ -32,8 +32,8 @@ function settingsState() {
             this.baseModel = cfg.defaultModel || '';
             this.refinerModel = cfg.defaultRefiner || 'None';
             this.refinerSwitch = cfg.defaultRefinerSwitch ?? 0.8;
-            this.guidanceScale = cfg.defaultCfgScale ?? 4.0;
-            this.sharpness = cfg.defaultSampleSharpness ?? 2.0;
+            this.guidanceScale = cfg.defaultCfgScale ?? 4;
+            this.sharpness = cfg.defaultSampleSharpness ?? 2;
             this.sampler = cfg.defaultSampler || 'dpmpp_2m_sde_gpu';
             this.scheduler = cfg.defaultScheduler || 'karras';
 

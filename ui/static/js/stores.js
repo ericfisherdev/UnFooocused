@@ -37,8 +37,8 @@ document.addEventListener('alpine:init', () => {
         defaultPrompt: '',
         defaultPromptNegative: '',
         defaultStyles: [],
-        defaultCfgScale: 4.0,
-        defaultSampleSharpness: 2.0,
+        defaultCfgScale: 4,
+        defaultSampleSharpness: 2,
         defaultSampler: 'dpmpp_2m_sde_gpu',
         defaultScheduler: 'karras',
         defaultLoras: [],
@@ -63,8 +63,8 @@ document.addEventListener('alpine:init', () => {
                 this.defaultPrompt = data.default_prompt || '';
                 this.defaultPromptNegative = data.default_prompt_negative || '';
                 this.defaultStyles = data.default_styles || [];
-                this.defaultCfgScale = data.default_cfg_scale ?? 4.0;
-                this.defaultSampleSharpness = data.default_sample_sharpness ?? 2.0;
+                this.defaultCfgScale = data.default_cfg_scale ?? 4;
+                this.defaultSampleSharpness = data.default_sample_sharpness ?? 2;
                 this.defaultSampler = data.default_sampler || 'dpmpp_2m_sde_gpu';
                 this.defaultScheduler = data.default_scheduler || 'karras';
                 this.defaultLoras = data.default_loras || [];

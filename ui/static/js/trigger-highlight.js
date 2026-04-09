@@ -17,11 +17,25 @@ const TriggerHighlight = (() => {
      * @returns {string} HTML with <mark> spans for trigger matches
      */
     function highlightTriggers(plainText, activeLoRAs) {
-        if (!activeLoRAs || !activeLoRAs.length || !plainText) {
+        if (!activeLoRAs?.length || !plainText) {
             return escapeHTML(plainText || '');
         }
 
-        // Build map: trigger word (lowercase) → { color, word (original casing), loraName }
+        const triggerMap = buildTriggerMap(activeLoRAs);
+        if (triggerMap.size === 0) return escapeHTML(plainText);
+
+        const escaped = [...triggerMap.keys()].map(w =>
+            w.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        );
+        const regex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi');
+
+        return applyTriggerRegex(plainText, regex, triggerMap);
+    }
+
+    /**
+     * Build map: trigger word (lowercase) -> { color, word (original casing), loraName }
+     */
+    function buildTriggerMap(activeLoRAs) {
         const triggerMap = new Map();
         for (const lora of activeLoRAs) {
             if (!lora.triggerWords) continue;
@@ -35,16 +49,13 @@ const TriggerHighlight = (() => {
                 }
             }
         }
+        return triggerMap;
+    }
 
-        if (triggerMap.size === 0) return escapeHTML(plainText);
-
-        // Build regex matching all trigger words (whole word, case-insensitive)
-        const escaped = [...triggerMap.keys()].map(w =>
-            w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        );
-        const regex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi');
-
-        // Apply regex to plain text first, then escape non-matched segments
+    /**
+     * Apply trigger regex to plain text, wrapping matches in <mark> elements.
+     */
+    function applyTriggerRegex(plainText, regex, triggerMap) {
         let result = '';
         let lastIndex = 0;
         let m;
@@ -75,7 +86,7 @@ const TriggerHighlight = (() => {
      * @returns {Array<{loraFilename: string, loraColor: string, triggerWord: string}>}
      */
     function findMissingTriggers(plainText, activeLoRAs) {
-        if (!activeLoRAs || !activeLoRAs.length) return [];
+        if (!activeLoRAs?.length) return [];
 
         const textLower = (plainText || '').toLowerCase();
         const missing = [];
@@ -86,7 +97,7 @@ const TriggerHighlight = (() => {
             const hasAny = lora.triggerWords.some(word => {
                 const normalized = (word || '').trim();
                 if (!normalized) return false;
-                const pattern = new RegExp(`\\b${normalized.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+                const pattern = new RegExp(`\\b${normalized.toLowerCase().replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
                 return pattern.test(textLower);
             });
 
@@ -112,11 +123,11 @@ const TriggerHighlight = (() => {
 
     function escapeAttribute(text) {
         return String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
+            .replaceAll(/&/g, '&amp;')
+            .replaceAll(/"/g, '&quot;')
+            .replaceAll(/'/g, '&#39;')
+            .replaceAll(/</g, '&lt;')
+            .replaceAll(/>/g, '&gt;');
     }
 
     /**
@@ -142,9 +153,9 @@ const TriggerHighlight = (() => {
             const hex = hexMatch[1].length === 3
                 ? hexMatch[1].split('').map(ch => ch + ch).join('')
                 : hexMatch[1];
-            const r = parseInt(hex.slice(0, 2), 16);
-            const g = parseInt(hex.slice(2, 4), 16);
-            const b = parseInt(hex.slice(4, 6), 16);
+            const r = Number.parseInt(hex.slice(0, 2), 16);
+            const g = Number.parseInt(hex.slice(2, 4), 16);
+            const b = Number.parseInt(hex.slice(4, 6), 16);
             return `rgba(${r},${g},${b},${opacity})`;
         }
         const rgbMatch = resolved.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
@@ -159,4 +170,4 @@ const TriggerHighlight = (() => {
 })();
 
 // Expose globally
-window.TriggerHighlight = TriggerHighlight;
+globalThis.TriggerHighlight = TriggerHighlight;

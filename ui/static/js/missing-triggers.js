@@ -17,12 +17,12 @@ function missingTriggers() {
         promptText: '',
 
         init() {
-            window.addEventListener('active-loras-updated', (e) => {
+            globalThis.addEventListener('active-loras-updated', (e) => {
                 this.activeLoRAs = e?.detail?.activeLoRAs || [];
                 this._recalculate();
             });
 
-            window.addEventListener('prompt-changed', (e) => {
+            globalThis.addEventListener('prompt-changed', (e) => {
                 if (e?.detail?.mode === 'positive') {
                     this.promptText = e?.detail?.text || '';
                     this._recalculate();
@@ -37,7 +37,7 @@ function missingTriggers() {
         insertTrigger(triggerWord, loraFilename) {
             // Dispatch to the prompt editor's insertAtCursor
             // The prompt editor listens for this custom event
-            window.dispatchEvent(new CustomEvent('insert-trigger-word', {
+            globalThis.dispatchEvent(new CustomEvent('insert-trigger-word', {
                 detail: { word: triggerWord, loraFilename, mode: 'positive' },
             }));
 
@@ -54,7 +54,7 @@ function missingTriggers() {
         },
 
         _recalculate() {
-            if (!window.TriggerHighlight) {
+            if (!globalThis.TriggerHighlight) {
                 this.missing = [];
                 return;
             }

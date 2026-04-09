@@ -57,7 +57,7 @@ function loraSlots() {
             return this.slots.length < this.maxSlots;
         },
 
-        async addLora(filename, weight = 1.0, skipEvent = false) {
+        async addLora(filename, weight = 1, skipEvent = false) {
             if (!this.canAdd) return;
             if (this.slots.some(s => s.filename === filename)) return;
 
@@ -95,7 +95,7 @@ function loraSlots() {
                 s.color = LORA_COLORS[i % LORA_COLORS.length];
             });
             if (removed) {
-                window.dispatchEvent(new CustomEvent('lora-removed', {
+                globalThis.dispatchEvent(new CustomEvent('lora-removed', {
                     detail: { index, filename: removed.filename },
                 }));
             }
@@ -108,7 +108,7 @@ function loraSlots() {
             const config = Alpine.store('config');
             const minWeight = config.defaultLorasMinWeight ?? -2;
             const maxWeight = config.defaultLorasMaxWeight ?? 5;
-            const val = parseFloat(weight) || 0;
+            const val = Number.parseFloat(weight) || 0;
             slot.weight = Math.min(Math.max(val, minWeight), maxWeight);
             this._dispatchChanged();
         },
@@ -118,7 +118,7 @@ function loraSlots() {
         },
 
         _dispatchChanged() {
-            window.dispatchEvent(new CustomEvent('lora-changed', {
+            globalThis.dispatchEvent(new CustomEvent('lora-changed', {
                 detail: {
                     slots: this.slots.map(s => ({
                         index: s.slotIndex,

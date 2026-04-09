@@ -16,10 +16,10 @@ function gallery() {
         lightboxIndex: 0,
 
         init() {
-            window.addEventListener('generation-results', (e) => {
+            globalThis.addEventListener('generation-results', (e) => {
                 this._addImages(e.detail.images);
             });
-            window.addEventListener('generation-finish', (e) => {
+            globalThis.addEventListener('generation-finish', (e) => {
                 this._addImages(e.detail.images);
             });
         },
@@ -62,10 +62,12 @@ function gallery() {
         selectImage(index) {
             const id = index;
             const idx = this.selectedImages.indexOf(id);
-            if (idx >= 0) {
+            if (idx < 0) {
+                if (this.selectedImages.length < 2) {
+                    this.selectedImages.push(id);
+                }
+            } else {
                 this.selectedImages.splice(idx, 1);
-            } else if (this.selectedImages.length < 2) {
-                this.selectedImages.push(id);
             }
         },
 
@@ -120,7 +122,7 @@ function gallery() {
                 // Staggered fade-in via GSAP
                 this.$nextTick(() => {
                     const grid = this.$refs?.grid;
-                    if (grid && window.fwdFadeIn) {
+                    if (grid && globalThis.fwdFadeIn) {
                         const newEls = Array.from(grid.children).slice(-newImages.length);
                         fwdFadeIn(newEls, 'normal', 0.05);
                     }
