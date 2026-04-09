@@ -153,7 +153,7 @@ def _discover_files(paths: list[str], extension: str = ".safetensors") -> list[s
             continue
         try:
             entries = os.listdir(directory)
-        except (PermissionError, OSError) as exc:
+        except OSError as exc:
             logger.warning("Skipping unreadable directory %s: %s", directory, exc)
             continue
         for entry in entries:
