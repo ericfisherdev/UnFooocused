@@ -23,7 +23,7 @@ function splitPane() {
         init() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
-                this._applyWidth(parseInt(saved, 10));
+                this._applyWidth(Number.parseInt(saved, 10));
             }
         },
 
@@ -55,7 +55,7 @@ function splitPane() {
             if (!compose) return;
 
             const current = compose.getBoundingClientRect().width;
-            let next = current;
+            let next;
 
             if (event.key === 'ArrowLeft') {
                 next = current - KEYBOARD_STEP;

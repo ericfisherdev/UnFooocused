@@ -12,7 +12,7 @@
 
 const FWD_GSAP = (() => {
 
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const prefersReducedMotion = globalThis.matchMedia('(prefers-reduced-motion: reduce)');
     let reducedMotion = prefersReducedMotion.matches;
 
     prefersReducedMotion.addEventListener('change', (e) => {
@@ -132,9 +132,9 @@ const FWD_GSAP = (() => {
 })();
 
 // Expose globally for Alpine component access
-window.fwdAnimate = FWD_GSAP.animate;
-window.fwdSlideIn = FWD_GSAP.slideIn;
-window.fwdSlideOut = FWD_GSAP.slideOut;
-window.fwdFadeIn = FWD_GSAP.fadeIn;
-window.fwdFadeOut = FWD_GSAP.fadeOut;
-window.fwdPulse = FWD_GSAP.pulse;
+globalThis.fwdAnimate = FWD_GSAP.animate;
+globalThis.fwdSlideIn = FWD_GSAP.slideIn;
+globalThis.fwdSlideOut = FWD_GSAP.slideOut;
+globalThis.fwdFadeIn = FWD_GSAP.fadeIn;
+globalThis.fwdFadeOut = FWD_GSAP.fadeOut;
+globalThis.fwdPulse = FWD_GSAP.pulse;

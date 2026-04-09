@@ -9,21 +9,17 @@
  * Registered via alpine:init so it has access to Alpine stores.
  */
 
+function getEditor(mode) {
+    return document.getElementById(`prompt-editor-${mode}`);
+}
+
 document.addEventListener('alpine:init', () => {
 
     let activeLoRAs = [];
     let highlightTimeout = null;
 
-    function getEditor(mode) {
-        return document.getElementById(`prompt-editor-${mode}`);
-    }
-
-    /**
-     * Save and restore cursor position across innerHTML updates.
-     * Uses character offset via TreeWalker.
-     */
     function saveCursorOffset(el) {
-        const sel = window.getSelection();
+        const sel = globalThis.getSelection();
         if (!sel.rangeCount || !el.contains(sel.anchorNode)) return null;
 
         const range = sel.getRangeAt(0);
@@ -46,7 +42,7 @@ document.addEventListener('alpine:init', () => {
                 const range = document.createRange();
                 range.setStart(node, offset - charCount);
                 range.collapse(true);
-                const sel = window.getSelection();
+                const sel = globalThis.getSelection();
                 sel.removeAllRanges();
                 sel.addRange(range);
                 return;
@@ -60,7 +56,7 @@ document.addEventListener('alpine:init', () => {
         if (!el) return;
 
         // Don't re-render while user is selecting text
-        const sel = window.getSelection();
+        const sel = globalThis.getSelection();
         if (sel.rangeCount > 0 && !sel.isCollapsed && el.contains(sel.anchorNode)) {
             return;
         }
@@ -84,7 +80,7 @@ document.addEventListener('alpine:init', () => {
     }
 
     // Listen for LoRA changes
-    window.addEventListener('lora-changed', (e) => {
+    globalThis.addEventListener('lora-changed', (e) => {
         activeLoRAs = (e.detail.slots || []).map(s => ({
             filename: s.filename,
             color: s.color,
@@ -98,23 +94,23 @@ document.addEventListener('alpine:init', () => {
         scheduleHighlight();
 
         // Dispatch for missing trigger detection (FWDF-105)
-        window.dispatchEvent(new CustomEvent('active-loras-updated', {
+        globalThis.dispatchEvent(new CustomEvent('active-loras-updated', {
             detail: { activeLoRAs: [...activeLoRAs] },
         }));
     });
 
-    window.addEventListener('lora-removed', (e) => {
+    globalThis.addEventListener('lora-removed', (e) => {
         const detail = e.detail;
         activeLoRAs = activeLoRAs.filter(l => l.slotIndex !== detail.index);
         scheduleHighlight();
 
-        window.dispatchEvent(new CustomEvent('active-loras-updated', {
+        globalThis.dispatchEvent(new CustomEvent('active-loras-updated', {
             detail: { activeLoRAs: [...activeLoRAs] },
         }));
     });
 
     // Re-highlight when prompt text changes (already debounced upstream)
-    window.addEventListener('prompt-changed', (e) => {
+    globalThis.addEventListener('prompt-changed', (e) => {
         if (e.detail.mode === 'positive' && activeLoRAs.length > 0) {
             scheduleHighlight(0);
         }
