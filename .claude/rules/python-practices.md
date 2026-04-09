@@ -63,6 +63,7 @@ Conflict resolution: performance wins over maintainability; Fluent Python idioms
 - Never catch and swallow exceptions silently. Log or re-raise.
 - Validate at the boundary (API entry points, config loading, deserialization). Once validated, data flows as typed, trustworthy objects.
 - Fail fast and loudly — a `ValueError` at startup beats silent corruption in production.
+- Know the exception hierarchy — don't catch both a parent and its subclass. `json.JSONDecodeError` is a subclass of `ValueError`; `PermissionError` is a subclass of `OSError`. Catching both is redundant and triggers SonarCloud S5713.
 
 ## Generators & Lazy Evaluation
 
@@ -84,6 +85,7 @@ Conflict resolution: performance wins over maintainability; Fluent Python idioms
 - Use fakes (in-memory repos, fake UoW) for unit tests — don't mock everything. Reserve real infrastructure for integration tests.
 - Test behavior (inputs → outputs/side effects), not implementation details.
 - If testing is hard, the architecture has coupling problems.
+- Use `pytest.approx()` for float comparisons — never use `==` on floats in assertions. Direct equality is fragile and triggers SonarCloud S1244.
 
 ## Performance — General Rules
 
@@ -126,6 +128,21 @@ Conflict resolution: performance wins over maintainability; Fluent Python idioms
 - Use NumPy vectorization instead of Python loops for numerical computation. Don't use `pandas` `.iterrows()`.
 - Optimization tiers: pure Python → NumPy/SciPy → Numba JIT → Cython → C/Rust extensions.
 - Don't prematurely reach for C extensions — algorithmic fixes + NumPy get you 90% there.
+
+## FastAPI
+
+- Use `Annotated[type, Depends(...)]` and `Annotated[type, Query(...)]` for dependency injection and query parameters — the legacy `param: type = Query(...)` style triggers SonarCloud S8410 and is deprecated in FastAPI docs.
+- Resolve file paths relative to the module (`Path(__file__).resolve().parents[N]`), not the process CWD. Servers started from a different directory will silently miss config files otherwise.
+- Guard `urlsplit().port` access with `try/except ValueError` when parsing client-controlled headers — malformed ports like `host:abc` raise `ValueError`.
+
+## Cognitive Complexity
+
+- Keep function cognitive complexity under 15 (SonarCloud S3776 threshold). When a function exceeds this:
+  - Extract key-specific dispatch branches into named helper functions (e.g., `_parse_tag_frequency()` instead of an inline `if key == 'ss_tag_frequency':` block).
+  - Extract repeated patterns into shared helpers (e.g., `_deduplicate_ordered()` for the seen-set dedup pattern).
+  - Extract origin validation, task finding, and yield draining from WebSocket handlers into standalone functions.
+- Merge collapsible nested `if` statements into a single condition: `if a and b:` instead of `if a:` / `if b:` (SonarCloud S1066).
+- `list(mutable_collection)` to copy before iteration is intentional, not unnecessary — don't remove it to satisfy S7504 if the collection can be mutated concurrently.
 
 ## Common Traps
 
