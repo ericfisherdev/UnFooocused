@@ -14,7 +14,6 @@
              x-ref="editor"
              class="prompt-editor__input text-prompt"
              contenteditable="true"
-             role="textbox"
              aria-multiline="true"
              :aria-label="label"
              spellcheck="false"
@@ -79,7 +78,6 @@
                  x-ref="editor"
                  class="prompt-editor__input prompt-editor__input--negative text-prompt"
                  contenteditable="true"
-                 role="textbox"
                  aria-multiline="true"
                  :aria-label="label"
                  spellcheck="false"
@@ -101,8 +99,8 @@
 <div class="compose__quick-settings" x-data="quickSettings()">
     <div class="quick-settings-grid">
         <div class="quick-settings__item">
-            <label class="text-label">Performance</label>
-            <div class="quick-settings__radio-group">
+            <span class="text-label" id="quick-settings-performance-label">Performance</span>
+            <div class="quick-settings__radio-group" role="group" aria-labelledby="quick-settings-performance-label">
                 <template x-for="perf in ['Speed', 'Quality', 'Extreme Speed']" :key="perf">
                     <button type="button" class="btn btn-secondary btn-sm"
                             :class="{ 'btn-primary': performance === perf }"
@@ -134,8 +132,8 @@
             </div>
         </div>
         <div class="quick-settings__item">
-            <label class="text-label">Format</label>
-            <div class="quick-settings__radio-group">
+            <span class="text-label" id="quick-settings-format-label">Format</span>
+            <div class="quick-settings__radio-group" role="group" aria-labelledby="quick-settings-format-label">
                 <template x-for="fmt in ['png', 'webp', 'jpeg']" :key="fmt">
                     <button type="button" class="btn btn-secondary btn-sm"
                             :class="{ 'btn-primary': outputFormat === fmt }"
@@ -146,14 +144,14 @@
             </div>
         </div>
         <div class="quick-settings__item">
-            <label class="text-label">Seed</label>
+            <label class="text-label" for="quick-settings-seed">Seed</label>
             <div style="display: flex; align-items: center; gap: var(--space-2);">
                 <button type="button" class="btn btn-sm"
                         :class="randomSeed ? 'btn-primary' : 'btn-secondary'"
                         @click="toggleRandomSeed()"
                         title="Random seed"
                         aria-label="Use random seed">🎲</button>
-                <input type="number" class="input input-sm text-mono"
+                <input id="quick-settings-seed" type="number" class="input input-sm text-mono"
                        :value="effectiveSeed"
                        :disabled="randomSeed"
                        @change="seed = parseInt($event.target.value) || 0"
@@ -162,8 +160,8 @@
             </div>
         </div>
         <div class="quick-settings__item" style="position: relative;">
-            <label class="text-label">Styles</label>
-            <button type="button" class="btn btn-secondary btn-sm"
+            <label class="text-label" for="quick-settings-styles-btn">Styles</label>
+            <button id="quick-settings-styles-btn" type="button" class="btn btn-secondary btn-sm"
                     @click="stylesOpen = !stylesOpen"
                     :aria-expanded="stylesOpen.toString()"
                     aria-controls="styles-dropdown"
@@ -193,11 +191,11 @@
 
 <!-- LoRA Slots -->
 <div class="compose__lora-slots" x-data="loraSlots()">
-    <label class="text-label">LoRAs</label>
+    <span class="text-label" id="lora-slots-label">LoRAs</span>
     <div class="lora-slots__list">
         <template x-for="(slot, i) in slots" :key="slot.filename">
-            <div class="lora-slot" role="group"
-                 :aria-label="`LoRA slot ${i + 1}: ${displayName(slot.filename)}`">
+            <fieldset class="lora-slot"
+                     :aria-label="`LoRA slot ${i + 1}: ${displayName(slot.filename)}`">
                 <div class="lora-slot__color" :style="`background: ${slot.color}`"></div>
                 <span class="text-heading-base lora-slot__name" x-text="displayName(slot.filename)"></span>
                 <input type="number" class="input input-sm text-mono lora-slot__weight"
@@ -212,7 +210,7 @@
                 <button type="button" class="lora-slot__remove"
                         @click="removeLora(i)"
                         :aria-label="`Remove ${displayName(slot.filename)}`">✕</button>
-            </div>
+            </fieldset>
         </template>
         <p class="text-body-muted" x-show="slots.length === 0" style="margin: 0;">No LoRAs active.</p>
     </div>

@@ -15,7 +15,6 @@
        x-transition:leave-start="settings-drawer--leave-start"
        x-transition:leave-end="settings-drawer--leave-end"
        x-cloak
-       role="complementary"
        aria-label="Settings"
        @keydown.escape.window="$store.ui.settingsDrawerOpen && $store.ui.toggleSettings()">
 
@@ -64,9 +63,9 @@
                  x-show="$el.previousElementSibling.getAttribute('aria-expanded') === 'true'">
                 <div class="settings-drawer__controls">
                     <div class="settings-drawer__field">
-                        <label class="text-label">Base Model</label>
+                        <label class="text-label" for="settings-base-model">Base Model</label>
                         <div class="select-wrapper">
-                            <select class="select" x-model="baseModel">
+                            <select id="settings-base-model" class="select" x-model="baseModel">
                                 <template x-for="m in $store.data.modelList" :key="m">
                                     <option :value="m" x-text="m.replace('.safetensors', '')"></option>
                                 </template>
@@ -74,9 +73,9 @@
                         </div>
                     </div>
                     <div class="settings-drawer__field">
-                        <label class="text-label">Refiner</label>
+                        <label class="text-label" for="settings-refiner">Refiner</label>
                         <div class="select-wrapper">
-                            <select class="select" x-model="refinerModel">
+                            <select id="settings-refiner" class="select" x-model="refinerModel">
                                 <option value="None">None</option>
                                 <template x-for="m in $store.data.modelList" :key="'ref-' + m">
                                     <option :value="m" x-text="m.replace('.safetensors', '')"></option>
@@ -125,9 +124,9 @@
                         </div>
                     </div>
                     <div class="settings-drawer__field">
-                        <label class="text-label">Sampler</label>
+                        <label class="text-label" for="settings-sampler">Sampler</label>
                         <div class="select-wrapper">
-                            <select class="select" x-model="sampler">
+                            <select id="settings-sampler" class="select" x-model="sampler">
                                 <template x-for="s in availableSamplers" :key="s">
                                     <option :value="s" x-text="s"></option>
                                 </template>

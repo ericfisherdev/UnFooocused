@@ -92,30 +92,27 @@
           x-data="{ inputImageEnabled: false, enhanceEnabled: false }">
 
         <!-- COMPOSE PANE (left) -->
-        <section class="split-pane__compose" role="region" aria-label="Compose">
+        <section class="split-pane__compose" aria-label="Compose">
             {% block compose %}
             {% include "partials/compose.html" %}
             {% endblock %}
         </section>
 
         <!-- DRAG HANDLE -->
-        <div class="split-pane__handle"
-             x-data="splitPane()"
-             @mousedown="startDrag"
-             @keydown="onKeyDown"
-             role="separator"
-             aria-orientation="vertical"
-             aria-label="Resize panels"
-             tabindex="0">
-            <div class="split-pane__handle-grip"></div>
-        </div>
+        <hr class="split-pane__handle"
+            x-data="splitPane()"
+            @mousedown="startDrag"
+            @keydown="onKeyDown"
+            aria-orientation="vertical"
+            aria-label="Resize panels">
+
 
         <!-- GALLERY PANE (right) -->
-        <section class="split-pane__gallery" role="complementary" aria-label="Image gallery">
+        <aside class="split-pane__gallery" aria-label="Image gallery">
             {% block gallery %}
             {% include "partials/gallery.html" %}
             {% endblock %}
-        </section>
+        </aside>
 
         <!-- SETTINGS DRAWER (between gallery and end of split-pane) -->
         {% include "partials/settings-drawer.html" %}
