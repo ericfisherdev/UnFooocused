@@ -388,6 +388,14 @@ def _build_yield_message(flag: str, product) -> dict | None:
     return None
 
 
+def _effective_port(parts, default_port: int) -> int | None:
+    """Extract port from URL parts, returning None on malformed input."""
+    try:
+        return parts.port or default_port
+    except ValueError:
+        return None
+
+
 def _reject_mismatched_origin(websocket: WebSocket) -> bool:
     """Return True if the WebSocket origin doesn't match the host header."""
     origin = websocket.headers.get("origin")
@@ -400,8 +408,10 @@ def _reject_mismatched_origin(websocket: WebSocket) -> bool:
 
     origin_host = (origin_parts.hostname or "").lower()
     request_host = (host_parts.hostname or "").lower()
-    origin_port = origin_parts.port or (443 if origin_parts.scheme == "https" else 80)
-    request_port = host_parts.port or (443 if websocket.url.scheme == "wss" else 80)
+    origin_port = _effective_port(origin_parts, 443 if origin_parts.scheme == "https" else 80)
+    request_port = _effective_port(host_parts, 443 if websocket.url.scheme == "wss" else 80)
+    if origin_port is None or request_port is None:
+        return True
 
     return (origin_host, origin_port) != (request_host, request_port)
 
