@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FwdFooocus</title>
+
+    <!-- Design system CSS -->
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/typography.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/settings-drawer.css">
+    <link rel="stylesheet" href="/static/css/prompt-editor.css">
+    <link rel="stylesheet" href="/static/css/lora-slots.css">
+    <link rel="stylesheet" href="/static/css/gallery.css">
+    <link rel="stylesheet" href="/static/css/missing-triggers.css">
+    <link rel="stylesheet" href="/static/css/gallery-compare.css">
+
+    <!-- App stores (must load before Alpine.js) -->
+    <script src="/static/js/stores.js"></script>
+
+    <!-- Alpine.js (defer so x-cloak works, stores register via alpine:init) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>[x-cloak] { display: none !important; }</style>
+
+    <!-- HTMX -->
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+
+    <!-- GSAP (core only, no plugins) -->
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="/static/js/gsap-setup.js"></script>
+
+    <!-- App JS -->
+    <script src="/static/js/split-pane.js"></script>
+    <script src="/static/js/ws.js"></script>
+    <script src="/static/js/prompt-editor.js"></script>
+    <script src="/static/js/settings-state.js"></script>
+    <script src="/static/js/lora-slots.js"></script>
+    <script src="/static/js/trigger-highlight.js"></script>
+    <script src="/static/js/prompt-highlight-bridge.js"></script>
+    <script src="/static/js/quick-settings.js"></script>
+    <script src="/static/js/gallery.js"></script>
+    <script src="/static/js/missing-triggers.js"></script>
+    <script src="/static/js/gallery-compare.js"></script>
+</head>
+<body class="fwd" x-data>
+
+    <!-- ============================================================
+         STATUS BAR (32px fixed top)
+         ============================================================ -->
+    <header class="status-bar" role="banner">
+        <div class="status-bar__left">
+            {% block status_left %}
+            <span class="text-caption status-bar__model"
+                  x-text="$store.config.loaded ? $store.config.defaultModel.replace('.safetensors', '') : 'Loading...'"></span>
+            <span class="text-caption status-bar__sep">&middot;</span>
+            <span class="text-caption status-bar__performance"
+                  x-text="$store.config.defaultPerformance"></span>
+            <span class="text-caption status-bar__sep">&middot;</span>
+            <span class="text-caption status-bar__connection"
+                  x-text="$store.generation.isGenerating
+                          ? ('Generating ' + $store.generation.currentImage + '/' + $store.generation.totalImages)
+                          : {'connected':'Connected','connecting':'Connecting\u2026','reconnecting':'Reconnecting\u2026','disconnected':'Disconnected'}[$store.ui.connectionState] || $store.ui.connectionState"
+                  :data-state="$store.ui.connectionState"></span>
+            {% endblock %}
+        </div>
+        <div class="status-bar__right">
+            {% block status_right %}
+            <button type="button" class="btn btn-ghost btn-sm status-bar__settings-btn"
+                    @click="$store.ui.toggleSettings()"
+                    :aria-pressed="$store.ui.settingsDrawerOpen"
+                    aria-label="Toggle settings drawer">
+                Settings
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm status-bar__dev-btn"
+                    @click="$store.ui.toggleDevTools()"
+                    :aria-pressed="$store.ui.devToolsOpen"
+                    aria-label="Toggle developer tools"
+                    x-show="$store.ui.devModeEnabled"
+                    x-cloak>
+                Dev
+            </button>
+            {% endblock %}
+        </div>
+    </header>
+
+    <!-- ============================================================
+         MAIN SPLIT-PANE LAYOUT
+         ============================================================ -->
+    <main class="split-pane" role="main"
+          x-data="{ inputImageEnabled: false, enhanceEnabled: false }">
+
+        <!-- COMPOSE PANE (left) -->
+        <section class="split-pane__compose" role="region" aria-label="Compose">
+            {% block compose %}
+            {% include "partials/compose.html" %}
+            {% endblock %}
+        </section>
+
+        <!-- DRAG HANDLE -->
+        <div class="split-pane__handle"
+             x-data="splitPane()"
+             @mousedown="startDrag"
+             @keydown="onKeyDown"
+             role="separator"
+             aria-orientation="vertical"
+             aria-label="Resize panels"
+             tabindex="0">
+            <div class="split-pane__handle-grip"></div>
+        </div>
+
+        <!-- GALLERY PANE (right) -->
+        <section class="split-pane__gallery" role="complementary" aria-label="Image gallery">
+            {% block gallery %}
+            {% include "partials/gallery.html" %}
+            {% endblock %}
+        </section>
+
+        <!-- SETTINGS DRAWER (between gallery and end of split-pane) -->
+        {% include "partials/settings-drawer.html" %}
+
+    </main>
+
+    <!-- ============================================================
+         OVERLAY SLOTS (picker, lightbox)
+         ============================================================ -->
+    {% block overlays %}{% endblock %}
+
+</body>
+</html>

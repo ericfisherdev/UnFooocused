@@ -1,0 +1,321 @@
+{#
+  Compose pane content — left side of split-pane.
+  Slots are structured with correct spacing from screen-spec-generation.md.
+  Each slot will be replaced by a real component in later phases.
+#}
+
+<!-- Prompt Editor (positive) -->
+<div class="compose__prompt-positive"
+     x-data="promptEditor({ mode: 'positive', value: $store.config.defaultPrompt })">
+    <label class="text-label" :for="editorId" x-text="label"></label>
+    <div class="prompt-editor__wrapper"
+         :class="{ 'prompt-editor__wrapper--focused': focused }">
+        <div :id="editorId"
+             x-ref="editor"
+             class="prompt-editor__input text-prompt"
+             contenteditable="true"
+             role="textbox"
+             aria-multiline="true"
+             :aria-label="label"
+             spellcheck="false"
+             @input.debounce.150ms="onInput"
+             @paste="onPaste"
+             @focus="onFocus"
+             @blur="onBlur"
+             @keydown="onKeydown"
+        ></div>
+        <span class="prompt-editor__placeholder text-placeholder"
+              x-show="isEmpty"
+              x-text="placeholder"
+              @click="$refs.editor?.focus()"></span>
+    </div>
+</div>
+
+<!-- Missing Trigger Detection Bar -->
+<div x-data="missingTriggers()" x-show="hasMissing" x-cloak
+     x-transition:enter="mt-enter-active"
+     x-transition:enter-start="mt-enter-from"
+     x-transition:enter-end="mt-enter-to"
+     x-transition:leave="mt-leave-active"
+     x-transition:leave-start="mt-leave-to"
+     x-transition:leave-end="mt-enter-from">
+    <div class="missing-triggers" role="alert" aria-live="polite">
+        <template x-for="mt in missing" :key="mt.loraFilename + mt.triggerWord">
+            <div class="missing-triggers__item">
+                <span class="missing-triggers__icon text-caption">⚠</span>
+                <span class="missing-triggers__text text-caption">
+                    Missing trigger: "<span class="missing-triggers__word"
+                    :style="`color: ${mt.loraColor}`"
+                    x-text="mt.triggerWord"></span>"
+                    (<span x-text="displayName(mt.loraFilename)"></span>)
+                </span>
+                <button type="button"
+                        class="missing-triggers__insert"
+                        @click="insertTrigger(mt.triggerWord, mt.loraFilename)"
+                        :aria-label="`Insert trigger word '${mt.triggerWord}' for ${displayName(mt.loraFilename)}`">[+]</button>
+            </div>
+        </template>
+    </div>
+</div>
+
+<!-- Negative Prompt (collapsible) -->
+<div class="compose__negative-prompt"
+     x-data="{ negOpen: false }">
+    <button type="button" class="collapsible-header text-label"
+            :aria-expanded="negOpen.toString()"
+            aria-controls="negative-prompt-content"
+            @click="negOpen = !negOpen">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M6 3l5 5-5 5z"/>
+        </svg>
+        Negative Prompt
+    </button>
+    <div id="negative-prompt-content"
+         class="collapsible-content"
+         x-data="promptEditor({ mode: 'negative', value: $store.config.defaultPromptNegative })">
+        <div class="prompt-editor__wrapper"
+             :class="{ 'prompt-editor__wrapper--focused': focused }">
+            <div :id="editorId"
+                 x-ref="editor"
+                 class="prompt-editor__input prompt-editor__input--negative text-prompt"
+                 contenteditable="true"
+                 role="textbox"
+                 aria-multiline="true"
+                 :aria-label="label"
+                 spellcheck="false"
+                 @input.debounce.150ms="onInput"
+                 @paste="onPaste"
+                 @focus="onFocus"
+                 @blur="onBlur"
+                 @keydown="onKeydown"
+            ></div>
+            <span class="prompt-editor__placeholder text-placeholder"
+                  x-show="isEmpty"
+                  x-text="placeholder"
+                  @click="$refs.editor?.focus()"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Settings (2-column grid) -->
+<div class="compose__quick-settings" x-data="quickSettings()">
+    <div class="quick-settings-grid">
+        <div class="quick-settings__item">
+            <label class="text-label">Performance</label>
+            <div class="quick-settings__radio-group">
+                <template x-for="perf in ['Speed', 'Quality', 'Extreme Speed']" :key="perf">
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            :class="{ 'btn-primary': performance === perf }"
+                            :aria-pressed="(performance === perf).toString()"
+                            @click="setPerformance(perf)"
+                            x-text="perf === 'Extreme Speed' ? 'Extreme' : perf"></button>
+                </template>
+            </div>
+        </div>
+        <div class="quick-settings__item">
+            <label class="text-label" for="quick-settings-aspect-ratio">Aspect Ratio</label>
+            <div class="select-wrapper">
+                <select id="quick-settings-aspect-ratio" class="select" x-model="aspectRatio">
+                    <template x-for="ar in $store.config.availableAspectRatios" :key="ar">
+                        <option :value="ar" x-text="ar.replace('*', ' × ')"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+        <div class="quick-settings__item">
+            <label class="text-label" for="quick-settings-image-count">Images</label>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <input id="quick-settings-image-count" type="range" class="slider" min="1"
+                       :max="$store.config.maxImageNumber"
+                       :value="imageNumber"
+                       @input="updateImageNumber($event.target.value)">
+                <span class="text-mono" x-text="imageNumber"
+                      style="min-width: 2ch; text-align: right;"></span>
+            </div>
+        </div>
+        <div class="quick-settings__item">
+            <label class="text-label">Format</label>
+            <div class="quick-settings__radio-group">
+                <template x-for="fmt in ['png', 'webp', 'jpeg']" :key="fmt">
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            :class="{ 'btn-primary': outputFormat === fmt }"
+                            :aria-pressed="(outputFormat === fmt).toString()"
+                            @click="outputFormat = fmt"
+                            x-text="fmt.toUpperCase()"></button>
+                </template>
+            </div>
+        </div>
+        <div class="quick-settings__item">
+            <label class="text-label">Seed</label>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <button type="button" class="btn btn-sm"
+                        :class="randomSeed ? 'btn-primary' : 'btn-secondary'"
+                        @click="toggleRandomSeed()"
+                        title="Random seed"
+                        aria-label="Use random seed">🎲</button>
+                <input type="number" class="input input-sm text-mono"
+                       :value="effectiveSeed"
+                       :disabled="randomSeed"
+                       @change="seed = parseInt($event.target.value) || 0"
+                       aria-label="Seed value"
+                       style="flex: 1;">
+            </div>
+        </div>
+        <div class="quick-settings__item" style="position: relative;">
+            <label class="text-label">Styles</label>
+            <button type="button" class="btn btn-secondary btn-sm"
+                    @click="stylesOpen = !stylesOpen"
+                    :aria-expanded="stylesOpen.toString()"
+                    aria-controls="styles-dropdown"
+                    style="width: 100%; justify-content: flex-start;">
+                <span x-text="selectedStyleCount > 0 ? selectedStyleCount + ' selected' : 'Browse styles...'"></span>
+            </button>
+            <div class="styles-dropdown" id="styles-dropdown" x-show="stylesOpen" x-cloak
+                 @click.outside="stylesOpen = false"
+                 @keydown.escape="stylesOpen = false">
+                <input type="search" class="input input-sm" placeholder="Search styles..."
+                       x-model="styleSearch" aria-label="Search styles"
+                       style="margin-bottom: var(--space-2);">
+                <div class="styles-dropdown__list">
+                    <template x-for="style in filteredStyles" :key="style">
+                        <label class="styles-dropdown__item">
+                            <input type="checkbox"
+                                   :checked="isStyleSelected(style)"
+                                   @change="toggleStyle(style)">
+                            <span class="text-body-sm" x-text="style"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LoRA Slots -->
+<div class="compose__lora-slots" x-data="loraSlots()">
+    <label class="text-label">LoRAs</label>
+    <div class="lora-slots__list">
+        <template x-for="(slot, i) in slots" :key="slot.filename">
+            <div class="lora-slot" role="group"
+                 :aria-label="`LoRA slot ${i + 1}: ${displayName(slot.filename)}`">
+                <div class="lora-slot__color" :style="`background: ${slot.color}`"></div>
+                <span class="text-heading-base lora-slot__name" x-text="displayName(slot.filename)"></span>
+                <input type="number" class="input input-sm text-mono lora-slot__weight"
+                       :value="slot.weight.toFixed(2)"
+                       step="0.05"
+                       :min="$store.config.defaultLorasMinWeight"
+                       :max="$store.config.defaultLorasMaxWeight"
+                       @change="updateWeight(i, $event.target.value)"
+                       :aria-label="`Weight for ${displayName(slot.filename)}`">
+                <span class="text-caption lora-slot__triggers" x-show="slot.triggerWords.length > 0"
+                      x-text="slot.triggerWords.slice(0, 3).join(', ') + (slot.triggerWords.length > 3 ? '...' : '')"></span>
+                <button type="button" class="lora-slot__remove"
+                        @click="removeLora(i)"
+                        :aria-label="`Remove ${displayName(slot.filename)}`">✕</button>
+            </div>
+        </template>
+        <p class="text-body-muted" x-show="slots.length === 0" style="margin: 0;">No LoRAs active.</p>
+    </div>
+    <div style="position: relative;">
+        <button type="button" class="btn btn-secondary btn-sm"
+                @click="pickerOpen = !pickerOpen; $nextTick(() => { if (pickerOpen) $refs.loraPicker.querySelector('button')?.focus() })"
+                :disabled="!canAdd"
+                :aria-expanded="pickerOpen.toString()"
+                aria-controls="lora-picker-mini">
+            + Add LoRA
+        </button>
+        <div class="lora-picker-mini" id="lora-picker-mini" x-show="pickerOpen" x-cloak x-ref="loraPicker"
+             @click.outside="pickerOpen = false"
+             @keydown.escape.window="if (pickerOpen) { pickerOpen = false; $event.stopPropagation() }">
+            <template x-if="availableLoras.length === 0">
+                <p class="lora-picker-mini__empty text-body-muted">No LoRAs available.</p>
+            </template>
+            <template x-for="filename in availableLoras" :key="filename">
+                <button type="button" class="lora-picker-mini__item"
+                        @click="addLora(filename); pickerOpen = false"
+                        x-text="filename.replace(/\.safetensors$/i, '')"></button>
+            </template>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Row -->
+<div class="compose__generate-row"
+     x-data="{
+         async generate() {
+             if ($store.generation.isGenerating) return;
+
+             // Collect prompt text from prompt-changed events stored on window
+             const prompt = document.getElementById('prompt-editor-positive')?.innerText || '';
+             const negPrompt = document.getElementById('prompt-editor-negative')?.innerText || '';
+
+             const body = {
+                 prompt: prompt,
+                 negative_prompt: negPrompt,
+                 // Quick settings read from sibling component — broadcast via DOM query
+                 // The quickSettings component stores state that we read here
+             };
+
+             try {
+                 const resp = await fetch('/api/generate', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify(body),
+                 });
+                 if (resp.ok) {
+                     $store.generation.isGenerating = true;
+                 }
+             } catch (e) {
+                 console.error('[generate] Failed:', e);
+             }
+         },
+         async stop() {
+             try {
+                 await fetch('/api/generate/stop', { method: 'POST' });
+             } catch {}
+         }
+     }">
+    <template x-if="!$store.generation.isGenerating">
+        <button type="button" class="btn btn-primary" style="width: 100%; height: 44px;"
+                @click="generate()"
+                @keydown.ctrl.enter.window="generate()">
+            Generate
+        </button>
+    </template>
+    <template x-if="$store.generation.isGenerating">
+        <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+            <div style="display: flex; gap: var(--space-2);">
+                <button type="button" class="btn btn-danger" style="flex: 1; height: 36px;"
+                        @click="stop()">
+                    Stop
+                </button>
+            </div>
+            <div class="generate-progress">
+                <div class="generate-progress__bar"
+                     :style="`width: ${$store.generation.percentage}%`"></div>
+            </div>
+            <span class="text-caption" x-text="$store.generation.progressText"></span>
+        </div>
+    </template>
+</div>
+
+<!-- Queue Panel (collapsible) -->
+<div class="compose__queue-panel">
+    <button class="collapsible-header text-heading-base"
+            aria-expanded="false"
+            aria-controls="queue-content"
+            @click="$el.setAttribute('aria-expanded', $el.getAttribute('aria-expanded') === 'true' ? 'false' : 'true')">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M6 3l5 5-5 5z"/>
+        </svg>
+        Queue
+        <span class="badge" style="margin-left: auto;">0</span>
+    </button>
+    <div id="queue-content" class="collapsible-content"
+         x-show="$el.previousElementSibling.getAttribute('aria-expanded') === 'true'"
+         x-cloak>
+        <p class="text-body-muted" style="padding: var(--space-3) 0;">
+            No jobs queued. Click '+ Add Job' to queue your current settings.
+        </p>
+    </div>
+</div>
