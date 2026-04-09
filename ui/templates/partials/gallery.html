@@ -52,7 +52,6 @@
         <template x-for="(img, i) in images" :key="img.id">
             <div class="gallery-thumb"
                  :class="{ 'gallery-thumb--selected': isSelected(i) }"
-                 role="gridcell"
                  tabindex="0"
                  :aria-label="`Image ${i + 1}${img.seed ? ', seed ' + img.seed : ''}`"
                  :aria-selected="isSelected(i).toString()"
@@ -62,7 +61,7 @@
                  @keydown.space.prevent="selectImage(i)">
                 <img class="gallery-thumb__img"
                      :src="imageUrl(img)"
-                     :alt="`Generated image ${i + 1}`"
+                     :alt="`Generated ${i + 1}`"
                      loading="lazy"
                      decoding="async">
                 <span class="gallery-thumb__seed text-mono" x-text="seedLabel(img)"></span>
@@ -77,20 +76,19 @@
     </div>
 
     <!-- Lightbox -->
-    <div class="gallery-lightbox"
-         x-show="lightboxOpen"
-         x-cloak
-         role="dialog"
-         aria-modal="true"
-         aria-label="Image viewer"
-         @keydown.escape="closeLightbox()"
-         @keydown.left="lightboxPrev()"
-         @keydown.right="lightboxNext()"
-         @click.self="closeLightbox()">
+    <dialog class="gallery-lightbox"
+            x-show="lightboxOpen"
+            x-cloak
+            aria-modal="true"
+            aria-label="Image viewer"
+            @keydown.escape="closeLightbox()"
+            @keydown.left="lightboxPrev()"
+            @keydown.right="lightboxNext()"
+            @click.self="closeLightbox()">
         <template x-if="lightboxImage">
             <img class="gallery-lightbox__img"
                  :src="imageUrl(lightboxImage)"
-                 :alt="`Image ${lightboxIndex + 1} of ${images.length}`">
+                 :alt="`${lightboxIndex + 1} of ${images.length}`">
         </template>
         <button type="button" class="gallery-lightbox__nav gallery-lightbox__nav--prev"
                 @click="lightboxPrev()"
@@ -103,6 +101,6 @@
         <button type="button" class="gallery-lightbox__close"
                 @click="closeLightbox()"
                 aria-label="Close image viewer">&#10005;</button>
-    </div>
+    </dialog>
 
 </div>

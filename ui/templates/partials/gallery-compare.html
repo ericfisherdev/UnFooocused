@@ -54,7 +54,7 @@
             <template x-if="imageA">
                 <img class="gallery-compare__img"
                      :src="$root.__x.$data.imageUrl ? $root.__x.$data.imageUrl(imageA) : imageA.url"
-                     alt="Comparison image A">
+                     alt="Comparison A">
             </template>
             <span class="text-caption gallery-compare__label">Image A</span>
             <div class="gallery-compare__meta" x-show="imageA">
@@ -74,7 +74,7 @@
             <template x-if="imageB">
                 <img class="gallery-compare__img"
                      :src="$root.__x.$data.imageUrl ? $root.__x.$data.imageUrl(imageB) : imageB.url"
-                     alt="Comparison image B">
+                     alt="Comparison B">
             </template>
             <span class="text-caption gallery-compare__label">Image B</span>
             <div class="gallery-compare__meta" x-show="imageB">
