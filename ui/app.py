@@ -393,7 +393,17 @@ def _reject_mismatched_origin(websocket: WebSocket) -> bool:
     origin = websocket.headers.get("origin")
     if not origin:
         return False
-    return urlsplit(origin).netloc != websocket.headers.get("host", "")
+
+    origin_parts = urlsplit(origin)
+    host_header = websocket.headers.get("host", "")
+    host_parts = urlsplit(f"//{host_header}")
+
+    origin_host = (origin_parts.hostname or "").lower()
+    request_host = (host_parts.hostname or "").lower()
+    origin_port = origin_parts.port or (443 if origin_parts.scheme == "https" else 80)
+    request_port = host_parts.port or (443 if websocket.url.scheme == "wss" else 80)
+
+    return (origin_host, origin_port) != (request_host, request_port)
 
 
 def _find_processing_task(async_tasks, current_task):

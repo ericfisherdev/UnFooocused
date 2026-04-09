@@ -76,15 +76,16 @@
     </div>
 
     <!-- Lightbox -->
-    <dialog class="gallery-lightbox"
-            x-show="lightboxOpen"
-            x-cloak
-            aria-modal="true"
-            aria-label="Image viewer"
-            @keydown.escape="closeLightbox()"
-            @keydown.left="lightboxPrev()"
-            @keydown.right="lightboxNext()"
-            @click.self="closeLightbox()">
+    <div role="dialog"
+         class="gallery-lightbox"
+         x-show="lightboxOpen"
+         x-cloak
+         aria-modal="true"
+         aria-label="Image viewer"
+         @keydown.escape="closeLightbox()"
+         @keydown.left="lightboxPrev()"
+         @keydown.right="lightboxNext()"
+         @click.self="closeLightbox()">
         <template x-if="lightboxImage">
             <img class="gallery-lightbox__img"
                  :src="imageUrl(lightboxImage)"
@@ -101,6 +102,6 @@
         <button type="button" class="gallery-lightbox__close"
                 @click="closeLightbox()"
                 aria-label="Close image viewer">&#10005;</button>
-    </dialog>
+    </div>
 
 </div>
