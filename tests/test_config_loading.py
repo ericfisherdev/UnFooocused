@@ -23,7 +23,7 @@ class TestConfigFromFile:
 
         result = load_config(config_path=config_file)
         assert result["default_model"] == "custom_model.safetensors"
-        assert result["default_cfg_scale"] == 9.5
+        assert result["default_cfg_scale"] == pytest.approx(9.5)
 
     def test_partial_config_uses_defaults_for_missing_keys(self, tmp_path):
         config_file = tmp_path / "config.txt"

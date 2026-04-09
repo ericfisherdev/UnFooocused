@@ -98,7 +98,7 @@ class TestLoadConfigFromFile:
         from modules.config import load_config
 
         result = load_config(config_path=config_file)
-        assert result["default_cfg_scale"] == 12.0
+        assert result["default_cfg_scale"] == pytest.approx(12.0)
 
     def test_reads_custom_paths(self, tmp_path):
         config_file = tmp_path / "config.txt"
