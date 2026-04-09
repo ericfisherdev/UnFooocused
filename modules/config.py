@@ -1,6 +1,6 @@
 """UnFooocused standalone configuration module.
 
-Loads settings from config.txt (JSON) in the working directory,
+Loads settings from config.txt (JSON) in the project root,
 falling back to sensible defaults for SDXL image generation.
 """
 
@@ -9,9 +9,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[1] / "config.txt"
 
 # ---------------------------------------------------------------------------
 # SDXL standard aspect ratios
@@ -78,25 +81,28 @@ _DEFAULTS: dict[str, Any] = {
 }
 
 
-def load_config(config_path: str = "config.txt") -> dict[str, Any]:
+def load_config(
+    config_path: str | os.PathLike[str] = _DEFAULT_CONFIG_PATH,
+) -> dict[str, Any]:
     """Load configuration from a JSON file, merged over defaults.
 
     Args:
         config_path: Path to the JSON config file. Defaults to
-            ``config.txt`` in the current working directory.
+            ``config.txt`` in the project root (next to ``modules/``).
 
     Returns:
         Merged configuration dictionary.
 
     Raises:
-        ValueError: If the config file exists but contains invalid JSON
-            or is not a JSON object.
+        ValueError: If the config file exists but contains invalid JSON,
+            is not a JSON object, or has invalid override types.
     """
     config = dict(_DEFAULTS)
+    config_path = Path(config_path)
 
-    if os.path.isfile(config_path):
+    if config_path.is_file():
         try:
-            with open(config_path, encoding="utf-8") as fh:
+            with config_path.open(encoding="utf-8") as fh:
                 user_config = json.load(fh)
         except json.JSONDecodeError as exc:
             raise ValueError(
@@ -111,7 +117,24 @@ def load_config(config_path: str = "config.txt") -> dict[str, Any]:
 
         config.update(user_config)
 
+    _validate_config(config)
     return config
+
+
+def _validate_config(config: dict[str, Any]) -> None:
+    """Validate critical config values that would cause import-time crashes."""
+    if not isinstance(config.get("paths_checkpoints"), list):
+        raise ValueError(
+            "config.txt: paths_checkpoints must be a list of paths"
+        )
+    if not isinstance(config.get("paths_loras"), list):
+        raise ValueError(
+            "config.txt: paths_loras must be a list of paths"
+        )
+    if config["default_loras_min_weight"] >= config["default_loras_max_weight"]:
+        raise ValueError(
+            "config.txt: default_loras_min_weight must be < default_loras_max_weight"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +151,12 @@ def _discover_files(paths: list[str], extension: str = ".safetensors") -> list[s
     for directory in paths:
         if not os.path.isdir(directory):
             continue
-        for entry in os.listdir(directory):
+        try:
+            entries = os.listdir(directory)
+        except (PermissionError, OSError) as exc:
+            logger.warning("Skipping unreadable directory %s: %s", directory, exc)
+            continue
+        for entry in entries:
             if entry.lower().endswith(extension):
                 found.add(entry)
     return sorted(found)
