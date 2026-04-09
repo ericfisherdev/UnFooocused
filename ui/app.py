@@ -388,6 +388,34 @@ def _build_yield_message(flag: str, product) -> dict | None:
     return None
 
 
+def _reject_mismatched_origin(websocket: WebSocket) -> bool:
+    """Return True if the WebSocket origin doesn't match the host header."""
+    origin = websocket.headers.get("origin")
+    if not origin:
+        return False
+    return urlsplit(origin).netloc != websocket.headers.get("host", "")
+
+
+def _find_processing_task(async_tasks, current_task):
+    """Return the first processing task from the queue or current_task."""
+    for task in list(async_tasks):
+        if task.processing:
+            return task
+    # Fallback: the worker pops the task from async_tasks
+    # before processing, so check current_task as well.
+    if current_task is not None and current_task.processing:
+        return current_task
+    return None
+
+
+async def _drain_remaining_yields(task, yield_index: int, send_fn) -> None:
+    """Forward any un-sent yields from a task that just finished."""
+    for flag, product in task.yields[yield_index:]:
+        msg = _build_yield_message(flag, product)
+        if msg is not None:
+            await send_fn(msg)
+
+
 @app.websocket("/ws/generation")
 async def ws_generation(websocket: WebSocket):
     """
@@ -396,18 +424,14 @@ async def ws_generation(websocket: WebSocket):
     Polls the active task's yields list and forwards them as JSON messages.
     Message types: preview, results, finish, heartbeat.
     """
-    origin = websocket.headers.get("origin")
-    host = websocket.headers.get("host", "")
-    if origin:
-        origin_netloc = urlsplit(origin).netloc
-        if origin_netloc != host:
-            logger.warning(
-                "Rejected WebSocket from mismatched origin: %s (host: %s)",
-                origin,
-                host,
-            )
-            await websocket.close(code=1008, reason="Origin not allowed")
-            return
+    if _reject_mismatched_origin(websocket):
+        logger.warning(
+            "Rejected WebSocket from mismatched origin: %s (host: %s)",
+            websocket.headers.get("origin"),
+            websocket.headers.get("host", ""),
+        )
+        await websocket.close(code=1008, reason="Origin not allowed")
+        return
 
     await websocket.accept()
 
@@ -423,31 +447,14 @@ async def ws_generation(websocket: WebSocket):
         idle_count = 0
 
         while True:
-            # Find an active (processing) task
             if active_task is None or not active_task.processing:
-                # Drain any remaining yields before discarding the task
                 if active_task is not None:
-                    remaining = active_task.yields[yield_index:]
-                    for flag, product in remaining:
-                        msg = _build_yield_message(flag, product)
-                        if msg is not None:
-                            await _send_and_heartbeat(msg)
-                active_task = None
+                    await _drain_remaining_yields(active_task, yield_index, _send_and_heartbeat)
+                active_task = _find_processing_task(async_tasks, current_task)
                 yield_index = 0
-                for task in list(async_tasks):
-                    if task.processing:
-                        active_task = task
-                        break
-                # Fallback: the worker pops the task from async_tasks
-                # before processing, so check current_task as well.
-                if active_task is None and current_task is not None and current_task.processing:
-                    active_task = current_task
 
-            # Always refresh heartbeat so the backend knows a client
-            # is connected — even when the pipeline is between yields
-            # (model loading, long sampling steps).  The 15-second
-            # timeout in is_browser_connected() would otherwise fire
-            # during silent gaps between yield messages.
+            # Refresh heartbeat so the backend knows a client is connected
+            # during silent gaps (model loading, long sampling steps).
             update_heartbeat()
 
             current_yields = active_task.yields if active_task is not None else []
@@ -464,7 +471,6 @@ async def ws_generation(websocket: WebSocket):
                     active_task = None
                     yield_index = 0
             else:
-                # No new yields — send heartbeat message to client every ~5s
                 idle_count += 1
                 if idle_count >= 50:  # 50 * 100ms = 5s
                     await websocket.send_json({"type": "heartbeat"})

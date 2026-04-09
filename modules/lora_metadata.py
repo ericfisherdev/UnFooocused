@@ -209,6 +209,57 @@ def _normalize_base_model(model_string: str) -> str:
     return model_string.strip()
 
 
+def _deduplicate_ordered(items: list[str]) -> list[str]:
+    """Remove duplicates from a list while preserving order (case-insensitive)."""
+    seen = set()
+    unique = []
+    for item in items:
+        item_lower = item.lower()
+        if item_lower not in seen and item:
+            seen.add(item_lower)
+            unique.append(item)
+    return unique
+
+
+def _parse_tag_frequency(value) -> list[str]:
+    """Parse trigger words from ss_tag_frequency metadata value."""
+    try:
+        tag_freq = json.loads(value) if isinstance(value, str) else value
+        if not isinstance(tag_freq, dict):
+            return []
+        # Format: {"dataset_name": {"tag1": count, "tag2": count}}
+        words = []
+        for dataset_tags in tag_freq.values():
+            if isinstance(dataset_tags, dict):
+                sorted_tags = sorted(
+                    dataset_tags.items(),
+                    key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0,
+                    reverse=True
+                )
+                words.extend([tag for tag, _ in sorted_tags[:20]])
+        return words
+    except (ValueError, TypeError):
+        return []
+
+
+def _parse_dataset_dirs(value) -> list[str]:
+    """Parse trigger words from ss_dataset_dirs metadata value."""
+    try:
+        dirs = json.loads(value) if isinstance(value, str) else value
+        if not isinstance(dirs, dict):
+            return []
+        # Directory names often contain trigger words
+        # Format: "1_character_name" or "10_style_name"
+        words = []
+        for dir_name in dirs.keys():
+            parts = dir_name.split('_', 1)
+            if len(parts) > 1:
+                words.append(parts[1].replace('_', ' '))
+        return words
+    except (ValueError, TypeError):
+        return []
+
+
 def _extract_trigger_words(metadata: dict) -> list[str]:
     """Extract trigger words from metadata."""
     trigger_words = []
@@ -221,57 +272,17 @@ def _extract_trigger_words(metadata: dict) -> list[str]:
         if not value:
             continue
 
-        # ss_tag_frequency is a JSON string with tag frequencies
         if key == 'ss_tag_frequency':
-            try:
-                tag_freq = json.loads(value) if isinstance(value, str) else value
-                if isinstance(tag_freq, dict):
-                    # Format: {"dataset_name": {"tag1": count, "tag2": count}}
-                    for dataset_tags in tag_freq.values():
-                        if isinstance(dataset_tags, dict):
-                            # Sort by frequency and take top tags
-                            sorted_tags = sorted(
-                                dataset_tags.items(),
-                                key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0,
-                                reverse=True
-                            )
-                            trigger_words.extend([tag for tag, _ in sorted_tags[:20]])
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        # ss_dataset_dirs contains directory names which often have trigger words
+            trigger_words.extend(_parse_tag_frequency(value))
         elif key == 'ss_dataset_dirs':
-            try:
-                dirs = json.loads(value) if isinstance(value, str) else value
-                if isinstance(dirs, dict):
-                    for dir_name in dirs.keys():
-                        # Directory names often contain trigger words
-                        # Format: "1_character_name" or "10_style_name"
-                        parts = dir_name.split('_', 1)
-                        if len(parts) > 1:
-                            trigger_words.append(parts[1].replace('_', ' '))
-            except (json.JSONDecodeError, TypeError):
-                pass
+            trigger_words.extend(_parse_dataset_dirs(value))
+        elif isinstance(value, str):
+            words = re.split(r'[,;\n]', value)
+            trigger_words.extend([w.strip() for w in words if w.strip()])
+        elif isinstance(value, list):
+            trigger_words.extend([str(w).strip() for w in value if w])
 
-        # Plain trigger words or activation text
-        else:
-            if isinstance(value, str):
-                # Split by common delimiters
-                words = re.split(r'[,;\n]', value)
-                trigger_words.extend([w.strip() for w in words if w.strip()])
-            elif isinstance(value, list):
-                trigger_words.extend([str(w).strip() for w in value if w])
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_triggers = []
-    for word in trigger_words:
-        word_lower = word.lower()
-        if word_lower not in seen and word:
-            seen.add(word_lower)
-            unique_triggers.append(word)
-
-    return unique_triggers
+    return _deduplicate_ordered(trigger_words)
 
 
 def _extract_description(metadata: dict) -> str | None:
@@ -301,6 +312,31 @@ def _extract_numeric_field(
     return None
 
 
+def _parse_bucket_resolutions(value) -> str | None:
+    """Parse resolution string from ss_bucket_info metadata value."""
+    try:
+        bucket_info = json.loads(value) if isinstance(value, str) else value
+        if not isinstance(bucket_info, dict):
+            return None
+        buckets = bucket_info.get('buckets', {})
+        if not buckets:
+            return None
+        resolutions = []
+        for res_key in buckets.keys():
+            # Format: "[512, 768]" or "(512, 768)"
+            try:
+                res = json.loads(res_key.replace('(', '[').replace(')', ']'))
+                if isinstance(res, list) and len(res) == 2:
+                    resolutions.append(f"{res[0]}x{res[1]}")
+            except (ValueError, TypeError):
+                continue
+        if resolutions:
+            return ', '.join(sorted(set(resolutions)))
+        return None
+    except (ValueError, TypeError):
+        return None
+
+
 def _extract_resolution(metadata: dict) -> str | None:
     """Extract training resolution from metadata."""
     for key in METADATA_KEY_MAPPINGS['resolution']:
@@ -311,29 +347,11 @@ def _extract_resolution(metadata: dict) -> str | None:
         if not value:
             continue
 
-        # ss_bucket_info contains bucket resolution info
         if key == 'ss_bucket_info':
-            try:
-                bucket_info = json.loads(value) if isinstance(value, str) else value
-                if isinstance(bucket_info, dict):
-                    # Get the max resolution from buckets
-                    buckets = bucket_info.get('buckets', {})
-                    if buckets:
-                        resolutions = []
-                        for res_key in buckets.keys():
-                            # Format: "[512, 768]" or "(512, 768)"
-                            try:
-                                res = json.loads(res_key.replace('(', '[').replace(')', ']'))
-                                if isinstance(res, list) and len(res) == 2:
-                                    resolutions.append(f"{res[0]}x{res[1]}")
-                            except (json.JSONDecodeError, ValueError, TypeError):
-                                continue
-                        if resolutions:
-                            return ', '.join(sorted(set(resolutions)))
-            except (json.JSONDecodeError, TypeError):
-                pass
+            result = _parse_bucket_resolutions(value)
+            if result:
+                return result
         else:
-            # Plain resolution string
             return str(value).strip()
 
     return None
@@ -368,16 +386,7 @@ def _extract_characters(text: str, metadata: dict) -> list[str]:
         matches = re.findall(pattern, text)
         characters.extend(matches)
 
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_chars = []
-    for char in characters:
-        char_lower = char.lower()
-        if char_lower not in seen and char:
-            seen.add(char_lower)
-            unique_chars.append(char)
-
-    return unique_chars
+    return _deduplicate_ordered(characters)
 
 
 def _extract_styles(text: str, metadata: dict) -> list[str]:
@@ -413,16 +422,7 @@ def _extract_styles(text: str, metadata: dict) -> list[str]:
             elif isinstance(value, list):
                 styles.extend([str(s).strip() for s in value if s])
 
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_styles = []
-    for style in styles:
-        style_lower = style.lower()
-        if style_lower not in seen and style:
-            seen.add(style_lower)
-            unique_styles.append(style)
-
-    return unique_styles
+    return _deduplicate_ordered(styles)
 
 
 def get_metadata_summary(metadata: dict) -> str:
@@ -995,9 +995,8 @@ def search_library(
 
     for metadata in library_data:
         # Apply base model filter
-        if base_model_filter:
-            if metadata.get('base_model') != base_model_filter:
-                continue
+        if base_model_filter and metadata.get('base_model') != base_model_filter:
+            continue
 
         # Apply text search
         if query_lower:
