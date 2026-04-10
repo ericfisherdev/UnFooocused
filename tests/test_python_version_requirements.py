@@ -9,10 +9,10 @@ Acceptance criteria:
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import pytest
-import tomllib
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = PROJECT_ROOT / "pyproject.toml"
@@ -91,20 +91,28 @@ class TestNoTomliReferences:
 
     def test_no_tomli_conditional_import_in_test_files(self) -> None:
         """No test file should contain 'import tomli as tomllib' conditional."""
+        # Build the forbidden string from parts so this file's own assertion
+        # messages do not trigger a false positive when scanned.
+        forbidden = "import tomli " + "as tomllib"
         tests_dir = PROJECT_ROOT / "tests"
         for test_file in tests_dir.glob("*.py"):
+            if test_file.name == Path(__file__).name:
+                continue
             content = test_file.read_text()
-            assert "import tomli as tomllib" not in content, (
-                f"{test_file.name} still contains 'import tomli as tomllib'. "
-                "With Python >=3.14, use 'import tomllib' directly."
+            assert forbidden not in content, (
+                f"{test_file.name} still contains '{forbidden}'. With Python >=3.14, use 'import tomllib' directly."
             )
 
     def test_no_version_check_for_tomllib(self) -> None:
         """No test file should contain sys.version_info checks for tomllib."""
+        version_check = "sys.version" + "_info"
+        tomli_ref = "tom" + "li"
         tests_dir = PROJECT_ROOT / "tests"
         for test_file in tests_dir.glob("*.py"):
+            if test_file.name == Path(__file__).name:
+                continue
             content = test_file.read_text()
-            if "sys.version_info" in content and "tomli" in content:
+            if version_check in content and tomli_ref in content:
                 raise AssertionError(
                     f"{test_file.name} contains a sys.version_info check related to tomli. "
                     "With Python >=3.14, use 'import tomllib' directly."

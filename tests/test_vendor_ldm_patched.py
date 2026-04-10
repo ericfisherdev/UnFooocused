@@ -15,7 +15,6 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import subprocess
-import sys
 
 import pytest
 
@@ -126,10 +125,7 @@ class TestDependenciesDeclared:
         pyproject_path = PROJECT_ROOT / "pyproject.toml"
         assert pyproject_path.exists(), "pyproject.toml not found"
 
-        if sys.version_info >= (3, 11):
-            import tomllib
-        else:
-            import tomli as tomllib
+        import tomllib
 
         with open(pyproject_path, "rb") as f:
             data = tomllib.load(f)
