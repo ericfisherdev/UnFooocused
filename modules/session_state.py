@@ -88,7 +88,7 @@ def save_state(base_model: BaseModelFamily, state: SessionState) -> None:
 
     Args:
         base_model: Base model family key (e.g. 'pony', 'sdxl').
-        state: Dictionary of UI state to persist.
+        state: Typed session state payload to persist.
     """
     state_copy = dict(state)
     if state_copy.get("seed") == -1:
@@ -119,7 +119,7 @@ def load_state(base_model: BaseModelFamily) -> SessionState | None:
         base_model: Base model family key (e.g. 'pony', 'sdxl').
 
     Returns:
-        Dictionary of saved UI state, or None if no state exists.
+        Typed session state, or None if no state exists.
     """
     try:
         conn = _get_connection()
