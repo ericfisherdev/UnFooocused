@@ -507,7 +507,7 @@ class TestWorkerBrowserDisconnect:
         from modules.async_worker import AsyncTask, Worker
 
         args = _minimal_args_list()
-        args[6] = 5  # image_number
+        args[4] = 5  # image_number
 
         task = AsyncTask(args)
         worker = Worker(output_dir=str(tmp_path))
