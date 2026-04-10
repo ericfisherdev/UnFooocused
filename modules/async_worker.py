@@ -251,7 +251,7 @@ class Worker:
         for lora_name, lora_weight in task.loras:
             logger.info("Applying LoRA: %s (weight=%.2f)", lora_name, lora_weight)
 
-        steps = task.steps or 30
+        steps = task.overwrite_step if task.overwrite_step > 0 else (task.steps or 30)
         output_paths: list[str] = []
 
         for image_index in range(task.image_number):
@@ -342,8 +342,16 @@ class Worker:
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
-        metadata = [("Prompt", "prompt", task.prompt)] if task.save_metadata_to_images else []
-        parsed_parameters = task.prompt if task.save_metadata_to_images else ""
+        effective_steps = task.overwrite_step if task.overwrite_step > 0 else (task.steps or 30)
+        if task.save_metadata_to_images:
+            metadata = [
+                ("Prompt", "prompt", task.prompt),
+                ("Steps", "steps", str(effective_steps)),
+            ]
+            parsed_parameters = f"{task.prompt}\nSteps: {effective_steps}"
+        else:
+            metadata = []
+            parsed_parameters = ""
 
         save_image(
             image=image,

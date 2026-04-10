@@ -56,6 +56,7 @@ _DEFAULTS: dict[str, Any] = {
     "default_loras_max_weight": 2.0,
     "default_max_lora_number": 5,
     "default_controlnet_image_count": 4,
+    "default_steps": -1,  # -1 means "derive from performance mode"
     "default_enhance_tabs": 3,
     # Paths
     "paths_checkpoints": ["./models/checkpoints"],
@@ -171,6 +172,7 @@ class AppConfig:
     default_loras_min_weight: float
     default_loras_max_weight: float
     default_max_lora_number: int
+    default_steps: int
     default_controlnet_image_count: int
     default_enhance_tabs: int
 
@@ -191,8 +193,15 @@ class AppConfig:
         Runs file discovery for model and LoRA filenames using the
         checkpoint/LoRA paths found in *raw*.
         """
+        from modules.flags import Performance
+
         paths_checkpoints: list[str] = raw["paths_checkpoints"]
         paths_loras: list[str] = raw["paths_loras"]
+
+        raw_steps = int(raw.get("default_steps", -1))
+        if raw_steps <= 0:
+            perf = Performance(raw["default_performance"])
+            raw_steps = perf.steps() or 30
 
         return cls(
             default_base_model_name=raw["default_model"],
@@ -215,6 +224,7 @@ class AppConfig:
             default_loras_min_weight=float(raw["default_loras_min_weight"]),
             default_loras_max_weight=float(raw["default_loras_max_weight"]),
             default_max_lora_number=int(raw["default_max_lora_number"]),
+            default_steps=raw_steps,
             default_controlnet_image_count=int(raw["default_controlnet_image_count"]),
             default_enhance_tabs=int(raw["default_enhance_tabs"]),
             paths_checkpoints=tuple(paths_checkpoints),

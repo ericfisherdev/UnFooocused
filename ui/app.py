@@ -131,6 +131,7 @@ async def get_app_config():
         "default_loras_min_weight": cfg.default_loras_min_weight,
         "default_loras_max_weight": cfg.default_loras_max_weight,
         "default_max_lora_number": cfg.default_max_lora_number,
+        "default_steps": cfg.default_steps,
     }
 
 
@@ -254,7 +255,7 @@ def _build_generate_args(body: dict) -> list:
         body.get("sampler_name", cfg.default_sampler),
         body.get("scheduler_name", cfg.default_scheduler),
         body.get("vae_name", "Default (model)"),
-        int(body.get("overwrite_step", -1)),
+        int(body.get("steps", body.get("overwrite_step", -1))),
         int(body.get("overwrite_switch", -1)),
         int(body.get("overwrite_width", -1)),
         int(body.get("overwrite_height", -1)),

@@ -158,6 +158,7 @@ class TestAppConfigDirectConstruction:
             default_loras_min_weight=-2.0,
             default_loras_max_weight=2.0,
             default_max_lora_number=5,
+            default_steps=30,
             default_controlnet_image_count=4,
             default_enhance_tabs=3,
             paths_checkpoints=("./models/checkpoints",),
