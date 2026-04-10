@@ -40,17 +40,19 @@ def client_with_models(models_dir):
     base = get_config()
     custom = dataclasses.replace(
         base,
-        paths_checkpoints=[models_dir["checkpoints"]],
-        paths_loras=[models_dir["loras"]],
-        model_filenames=refresh_model_filenames([models_dir["checkpoints"]]),
-        lora_filenames=refresh_lora_filenames([models_dir["loras"]]),
+        paths_checkpoints=(models_dir["checkpoints"],),
+        paths_loras=(models_dir["loras"],),
+        model_filenames=tuple(refresh_model_filenames([models_dir["checkpoints"]])),
+        lora_filenames=tuple(refresh_lora_filenames([models_dir["loras"]])),
     )
     set_config(custom)
 
-    from ui.app import app
+    try:
+        from ui.app import app
 
-    yield TestClient(app)
-    reset_config()
+        yield TestClient(app)
+    finally:
+        reset_config()
 
 
 class TestGetModels:
@@ -96,10 +98,10 @@ class TestGetModelsEmptyPaths:
         base = get_config()
         custom = dataclasses.replace(
             base,
-            paths_checkpoints=["/nonexistent/path"],
-            paths_loras=["/nonexistent/loras"],
-            model_filenames=[],
-            lora_filenames=[],
+            paths_checkpoints=("/nonexistent/path",),
+            paths_loras=("/nonexistent/loras",),
+            model_filenames=(),
+            lora_filenames=(),
         )
         set_config(custom)
 
