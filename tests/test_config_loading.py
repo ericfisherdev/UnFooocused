@@ -65,7 +65,8 @@ class TestConfigDefaults:
         assert isinstance(result["default_scheduler"], str)
 
     def test_model_filenames_is_list(self):
-        import modules.config as config
+        from modules.config import get_config
 
-        assert isinstance(config.model_filenames, list)
-        assert isinstance(config.lora_filenames, list)
+        cfg = get_config()
+        assert isinstance(cfg.model_filenames, list)
+        assert isinstance(cfg.lora_filenames, list)
