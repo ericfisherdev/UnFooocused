@@ -47,8 +47,6 @@ class LoRAConfig:
         filename: Path or name of the LoRA weights file (e.g. 'detail.safetensors').
         weight: Strength multiplier for the LoRA, typically 0.0 to 1.0.
 
-    Raises:
-        TypeError: If constructed with wrong argument types (enforced by dataclass).
     """
 
     filename: str
@@ -66,9 +64,6 @@ class SamplerConfig:
         cfg_scale: Classifier-free guidance scale.
         seed: Random seed for reproducibility.
         denoise: Denoising strength, 0.0 (no change) to 1.0 (full denoise).
-
-    Raises:
-        TypeError: If constructed with wrong argument types (enforced by dataclass).
     """
 
     sampler_name: str
