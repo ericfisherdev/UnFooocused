@@ -38,11 +38,11 @@ class TestSessionStateTypedDictExists:
         hints = get_type_hints(SessionState)
         assert "negative_prompt" in hints
 
-    def test_session_state_has_style_selections_field(self) -> None:
+    def test_session_state_has_styles_field(self) -> None:
         from modules.session_state import SessionState
 
         hints = get_type_hints(SessionState)
-        assert "style_selections" in hints
+        assert "styles" in hints
 
     def test_session_state_has_loras_field(self) -> None:
         from modules.session_state import SessionState
@@ -234,11 +234,11 @@ class TestLoraEntryTypedDict:
 
         assert issubclass(LoraEntry, dict)
 
-    def test_lora_entry_has_filename_field(self) -> None:
+    def test_lora_entry_has_name_field(self) -> None:
         from modules.session_state import LoraEntry
 
         hints = get_type_hints(LoraEntry)
-        assert "filename" in hints
+        assert "name" in hints
 
     def test_lora_entry_has_weight_field(self) -> None:
         from modules.session_state import LoraEntry
