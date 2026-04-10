@@ -74,7 +74,7 @@ class AsyncTask:
 
     def __init__(self, args: list) -> None:
         from modules.config import get_config
-        from modules.flags import MetadataScheme, Performance, ip_list
+        from modules.flags import MetadataScheme, ip_list
 
         self.args = args.copy()
         self.yields: list[tuple[str, object]] = []
@@ -93,10 +93,6 @@ class AsyncTask:
         self.generate_image_grid: bool = args.pop()
         self.prompt: str = args.pop()
         self.negative_prompt: str = args.pop()
-        self.style_selections: list[str] = args.pop()
-
-        self.performance_selection: Performance = Performance(args.pop())
-        self.steps: int | None = self.performance_selection.steps()
 
         self.aspect_ratios_selection: str = args.pop()
         self.width, self.height = _parse_resolution(self.aspect_ratios_selection)
@@ -191,11 +187,11 @@ class AsyncTask:
 
         If ``overwrite_step`` is positive the user explicitly chose a step
         count and it takes precedence.  Otherwise fall back to the
-        performance-preset value (``self.steps``), defaulting to 30.
+        hardcoded default of 30 steps.
         """
         if hasattr(self, "overwrite_step") and self.overwrite_step > 0:
             return self.overwrite_step
-        return self.steps or 30
+        return 30
 
 
 # ---------------------------------------------------------------------------
