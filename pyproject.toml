@@ -2,7 +2,7 @@
 name = "unfooocused"
 version = "0.1.0"
 description = "Standalone web UI for Stable Diffusion XL image generation"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
@@ -23,7 +23,7 @@ dev = [
     "ruff>=0.8",
     "bandit>=1.8",
     "pre-commit>=4.0",
-    "tomli>=2.0; python_version < '3.11'",
+
 ]
 
 [build-system]
@@ -38,7 +38,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py314"
 line-length = 120
 src = ["modules", "ui", "tests"]
 exclude = ["ldm_patched/**"]
