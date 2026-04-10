@@ -17,9 +17,19 @@ import time
 from pathlib import Path
 from typing import Any
 
-from safetensors import safe_open
-
 logger = logging.getLogger(__name__)
+
+
+def _safe_open(file_path: str, framework: str = "pt"):
+    """Lazy import wrapper for safetensors.safe_open.
+
+    Defers the ``safetensors`` import to call time so the rest of the
+    module remains importable in environments where the heavy ML
+    dependency is not installed (CI, lightweight test runs).
+    """
+    from safetensors import safe_open
+
+    return safe_open(file_path, framework=framework)
 
 
 # Common metadata key variations from different LoRA sources
@@ -134,7 +144,7 @@ def extract_metadata(file_path: str) -> dict[str, Any]:
 
     try:
         # Open safetensors file and extract metadata from header
-        with safe_open(file_path, framework="pt") as f:
+        with _safe_open(file_path, framework="pt") as f:
             raw_metadata = f.metadata()
 
             if raw_metadata is None:
@@ -228,7 +238,7 @@ def _parse_tag_frequency(value) -> list[str]:
         for dataset_tags in tag_freq.values():
             if isinstance(dataset_tags, dict):
                 sorted_tags = sorted(
-                    dataset_tags.items(), key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0, reverse=True
+                    dataset_tags.items(), key=lambda x: x[1] if isinstance(x[1], int | float) else 0, reverse=True
                 )
                 words.extend([tag for tag, _ in sorted_tags[:20]])
         return words
@@ -509,7 +519,7 @@ def is_valid_lora_file(file_path: str) -> bool:
 
     try:
         # Try to open and check for LoRA-specific keys
-        with safe_open(file_path, framework="pt") as f:
+        with _safe_open(file_path, framework="pt") as f:
             keys = list(f.keys())
             # LoRA files typically have keys with 'lora' in them
             has_lora_keys = any("lora" in key.lower() for key in keys)
