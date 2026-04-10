@@ -291,7 +291,8 @@ class Worker:
             Absolute path to the saved image file.
         """
         self._yield_step_progress(task, image_index, steps)
-        image = _generate_stub_image(task.width, task.height, task.seed + image_index)
+        effective_seed = task.seed if task.disable_seed_increment else task.seed + image_index
+        image = _generate_stub_image(task.width, task.height, effective_seed)
         return self._save_generated_image(task, image)
 
     def _yield_step_progress(
@@ -313,7 +314,8 @@ class Worker:
             completed = image_index * steps + step + 1
             percentage = int(completed / total_steps * 100)
             text = f"Image {image_index + 1}/{task.image_number}, Step {step + 1}/{steps}"
-            task.yields.append(("preview", (percentage, text, None)))
+            if not task.disable_preview:
+                task.yields.append(("preview", (percentage, text, None)))
 
     def _save_generated_image(self, task: AsyncTask, image: Image) -> str:
         """Save a generated image to the output directory.
@@ -333,12 +335,15 @@ class Worker:
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
+        metadata = [("Prompt", "prompt", task.prompt)] if task.save_metadata_to_images else []
+        parsed_parameters = task.prompt if task.save_metadata_to_images else ""
+
         save_image(
             image=image,
             filepath=filepath,
             output_format=task.output_format,
-            metadata=[("Prompt", "prompt", task.prompt)],
-            parsed_parameters=task.prompt,
+            metadata=metadata,
+            parsed_parameters=parsed_parameters,
         )
 
         return filepath
