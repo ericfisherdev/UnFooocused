@@ -599,7 +599,7 @@ class TestDisableSeedIncrement:
         img0 = Image.open(paths[0])
         img1 = Image.open(paths[1])
         # With same seed, stub images should be identical (same color)
-        assert list(img0.get_flattened_data()) == list(img1.get_flattened_data())
+        assert img0.tobytes() == img1.tobytes()
 
     def test_different_seeds_by_default(self, tmp_path):
         from modules.async_worker import AsyncTask, Worker
@@ -615,7 +615,7 @@ class TestDisableSeedIncrement:
         img0 = Image.open(paths[0])
         img1 = Image.open(paths[1])
         # With incrementing seeds, stub images should differ
-        assert list(img0.get_flattened_data()) != list(img1.get_flattened_data())
+        assert img0.tobytes() != img1.tobytes()
 
 
 # ---------------------------------------------------------------------------
