@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import os
 
 from modules.flags import sdxl_aspect_ratios
 
@@ -120,23 +122,30 @@ def _validate_config(config: dict[str, Any]) -> None:
 
 
 def _discover_files(paths: list[str], extension: str = ".safetensors") -> list[str]:
-    """Scan directories for files with the given extension.
+    """Scan directories recursively for files with the given extension.
 
     Returns:
-        Sorted list of filenames (not full paths).
+        Sorted list of paths relative to each search root.  Root-level files
+        are returned as plain filenames (e.g. ``model.safetensors``);
+        subdirectory files use forward-slash separators
+        (e.g. ``pony/model.safetensors``).
     """
     found: set[str] = set()
     for directory in paths:
-        if not os.path.isdir(directory):
+        root_path = Path(directory)
+        if not root_path.is_dir():
             continue
         try:
-            entries = os.listdir(directory)
+            for file_path in root_path.rglob("*"):
+                if not file_path.is_file():
+                    continue
+                if not file_path.name.lower().endswith(extension):
+                    continue
+                relative = file_path.relative_to(root_path)
+                found.add(relative.as_posix())
         except OSError as exc:
             logger.warning("Skipping unreadable directory %s: %s", directory, exc)
             continue
-        for entry in entries:
-            if entry.lower().endswith(extension):
-                found.add(entry)
     return sorted(found)
 
 
