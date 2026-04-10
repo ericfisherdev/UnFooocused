@@ -50,6 +50,8 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # ---------------------------------------------------------------------------
 
 _worker_stop = threading.Event()
+_worker_thread: threading.Thread | None = None
+_worker_lock = threading.Lock()
 
 
 def _worker_loop() -> None:
@@ -60,8 +62,11 @@ def _worker_loop() -> None:
     worker = Worker(output_dir=cfg.path_outputs)
 
     while not _worker_stop.is_set():
-        if async_tasks:
-            task = async_tasks.pop(0)
+        task = None
+        with _worker_lock:
+            if async_tasks:
+                task = async_tasks.pop(0)
+        if task is not None:
             try:
                 worker.process_task(task)
             except Exception:
@@ -72,8 +77,12 @@ def _worker_loop() -> None:
 
 @app.on_event("startup")
 def _start_worker() -> None:
-    thread = threading.Thread(target=_worker_loop, daemon=True, name="generation-worker")
-    thread.start()
+    global _worker_thread
+    if _worker_thread is not None and _worker_thread.is_alive():
+        return
+    _worker_stop.clear()
+    _worker_thread = threading.Thread(target=_worker_loop, daemon=True, name="generation-worker")
+    _worker_thread.start()
     logger.info("Generation worker thread started")
 
 
