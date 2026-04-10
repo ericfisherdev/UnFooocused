@@ -1,8 +1,4 @@
-"""Unit tests for AppConfig dataclass and get_config() accessor.
-
-RED phase: these tests define the new AppConfig interface.
-They must FAIL until AppConfig and get_config() are implemented.
-"""
+"""Unit tests for AppConfig dataclass and get_config() accessor."""
 
 import json
 
