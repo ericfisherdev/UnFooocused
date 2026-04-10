@@ -52,7 +52,7 @@ def fixed_now() -> datetime.datetime:
 
 @pytest.fixture()
 def sample_metadata() -> list[tuple[str, str, str]]:
-    """Metadata triples matching the FwdFooocus convention: (label, key, value)."""
+    """Metadata triples as (label, key, value) for log display."""
     return [
         ("Prompt", "prompt", "a beautiful landscape"),
         ("Negative", "negative_prompt", "blurry"),
