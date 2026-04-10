@@ -7,7 +7,6 @@ back to defaults when absent.
 import json
 
 import pytest
-
 from modules.config import load_config
 
 
@@ -16,10 +15,14 @@ class TestConfigFromFile:
 
     def test_loads_custom_value_from_config_file(self, tmp_path):
         config_file = tmp_path / "config.txt"
-        config_file.write_text(json.dumps({
-            "default_model": "custom_model.safetensors",
-            "default_cfg_scale": 9.5,
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_model": "custom_model.safetensors",
+                    "default_cfg_scale": 9.5,
+                }
+            )
+        )
 
         result = load_config(config_path=config_file)
         assert result["default_model"] == "custom_model.safetensors"
@@ -27,9 +30,13 @@ class TestConfigFromFile:
 
     def test_partial_config_uses_defaults_for_missing_keys(self, tmp_path):
         config_file = tmp_path / "config.txt"
-        config_file.write_text(json.dumps({
-            "default_model": "partial_model.safetensors",
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_model": "partial_model.safetensors",
+                }
+            )
+        )
 
         result = load_config(config_path=config_file)
         # Explicitly set field should be custom

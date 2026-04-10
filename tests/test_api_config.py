@@ -61,14 +61,10 @@ class TestGetConfig:
         list(REQUIRED_FIELDS.items()),
         ids=list(REQUIRED_FIELDS.keys()),
     )
-    def test_field_has_correct_type(
-        self, client: TestClient, field: str, expected_type
-    ):
+    def test_field_has_correct_type(self, client: TestClient, field: str, expected_type):
         data = client.get("/api/config").json()
         assert field in data, f"Field {field!r} missing from response"
-        assert isinstance(data[field], expected_type), (
-            f"{field}: expected {expected_type}, got {type(data[field])}"
-        )
+        assert isinstance(data[field], expected_type), f"{field}: expected {expected_type}, got {type(data[field])}"
 
     def test_available_aspect_ratios_not_empty(self, client: TestClient):
         data = client.get("/api/config").json()

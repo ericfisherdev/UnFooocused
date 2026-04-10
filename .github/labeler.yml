@@ -1,0 +1,36 @@
+backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - modules/**
+          - ui/app.py
+          - ui/server.py
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ui/templates/**
+          - ui/static/**
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - tests/**
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - .pre-commit-config.yaml
+
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - pyproject.toml
+          - sonar-project.properties
+          - config.txt
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.md"
+          - docs/**

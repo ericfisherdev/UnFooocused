@@ -3,9 +3,6 @@
 Outer-loop TDD (Percival): verifies model discovery works end-to-end.
 """
 
-import os
-import tempfile
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -50,38 +47,28 @@ class TestGetModels:
         response = client_with_models.get("/api/models")
         assert response.status_code == 200
 
-    def test_response_has_checkpoints_and_loras_keys(
-        self, client_with_models: TestClient
-    ):
+    def test_response_has_checkpoints_and_loras_keys(self, client_with_models: TestClient):
         data = client_with_models.get("/api/models").json()
         assert "checkpoints" in data
         assert "loras" in data
 
-    def test_discovers_safetensors_checkpoints(
-        self, client_with_models: TestClient
-    ):
+    def test_discovers_safetensors_checkpoints(self, client_with_models: TestClient):
         data = client_with_models.get("/api/models").json()
         filenames = data["checkpoints"]
         assert "test_model_v1.safetensors" in filenames
         assert "test_model_v2.safetensors" in filenames
 
-    def test_excludes_non_safetensors_from_checkpoints(
-        self, client_with_models: TestClient
-    ):
+    def test_excludes_non_safetensors_from_checkpoints(self, client_with_models: TestClient):
         data = client_with_models.get("/api/models").json()
         filenames = data["checkpoints"]
         assert "not_a_model.txt" not in filenames
 
-    def test_discovers_safetensors_loras(
-        self, client_with_models: TestClient
-    ):
+    def test_discovers_safetensors_loras(self, client_with_models: TestClient):
         data = client_with_models.get("/api/models").json()
         filenames = data["loras"]
         assert "detail_enhancer.safetensors" in filenames
 
-    def test_excludes_non_safetensors_from_loras(
-        self, client_with_models: TestClient
-    ):
+    def test_excludes_non_safetensors_from_loras(self, client_with_models: TestClient):
         data = client_with_models.get("/api/models").json()
         filenames = data["loras"]
         assert "readme.md" not in filenames
