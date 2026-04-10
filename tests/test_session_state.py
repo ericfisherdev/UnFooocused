@@ -174,7 +174,9 @@ class TestCorruptedJsonHandling:
         # load_state reads via the module's own connection, which has cached data
         # We need to use a fresh connection to see the corrupted data
         # Reset the module connection so it reopens and sees the corrupted row
-        session_state_module._connection.close()
+        conn_to_close = session_state_module._connection
+        if conn_to_close is not None:
+            conn_to_close.close()
         session_state_module._connection = None
         result = load_state("sdxl")
         assert result is None
