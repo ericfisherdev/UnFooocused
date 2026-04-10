@@ -458,24 +458,32 @@ class TestWsGenerationIntegration:
         worker_module.async_tasks.clear()
         worker_module.current_task = None
 
-    def test_websocket_receives_heartbeat_when_idle(self, client) -> None:
+    def test_websocket_receives_heartbeat_when_idle(self, client, monkeypatch) -> None:
         """When no task is running, the WebSocket sends heartbeat messages."""
+        import asyncio
         import threading
+
+        import ui.app as app_module
+
+        _original_sleep = asyncio.sleep
+
+        async def _fast_sleep(delay: float) -> None:
+            # Speed up the 0.1s poll interval to near-instant
+            await _original_sleep(0.001)
+
+        monkeypatch.setattr(app_module.asyncio, "sleep", _fast_sleep)
 
         received: list[dict] = []
 
         def ws_reader():
             with client.websocket_connect("/ws/generation") as ws:
-                # Wait for a heartbeat (sent every ~5s of idle)
-                # We'll receive it by waiting
                 msg = ws.receive_json()
                 received.append(msg)
 
         # Run in a thread with a timeout
         thread = threading.Thread(target=ws_reader, daemon=True)
         thread.start()
-        # Wait enough for at least one heartbeat cycle (50 * 100ms = 5s)
-        thread.join(timeout=8.0)
+        thread.join(timeout=2.0)
 
         assert len(received) >= 1
         assert received[0]["type"] == "heartbeat"
@@ -528,6 +536,8 @@ class TestWsGenerationIntegration:
         time.sleep(0.2)
         task.yields.append(("preview", (100, "Image 1/1, Step 5/5", None)))
         time.sleep(0.2)
+        task.processing = False
+        worker_module.current_task = None
         task.yields.append(("finish", ["test_output.png"]))
 
         ws_thread.join(timeout=5.0)
