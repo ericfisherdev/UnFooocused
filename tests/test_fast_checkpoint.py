@@ -340,11 +340,15 @@ class TestFastCheckpointPathTraversal:
 
         # Absolute path should be treated as unsafe for fast cache
         result = resolve_checkpoint_path("/etc/passwd", [str(slow_dir)], fast_path=str(fast_dir))
-        # Should fall back to _find_in_folders, not write to fast cache
+        # Should fall back, not write to fast cache, and stay within slow_dir
         assert str(fast_dir) not in result
+        resolved = os.path.realpath(result)
+        assert resolved.startswith(str(slow_dir))
 
     def test_rejects_parent_directory_traversal(self, slow_dir, fast_dir):
         from modules.fast_checkpoint import resolve_checkpoint_path
 
         result = resolve_checkpoint_path("../../../etc/passwd", [str(slow_dir)], fast_path=str(fast_dir))
         assert str(fast_dir) not in result
+        resolved = os.path.realpath(result)
+        assert resolved.startswith(str(slow_dir))

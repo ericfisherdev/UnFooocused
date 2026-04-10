@@ -20,14 +20,27 @@ def _find_in_folders(name: str, folders: list[str]) -> str:
     """Search folders for a file by name, returning the first match.
 
     Returns the absolute real path of the first match, or a constructed
-    path in the first folder when no match is found.
+    path in the first folder when no match is found.  Only returns paths
+    that resolve within one of the configured folders (path-traversal
+    protection).
     """
+    if not folders:
+        return os.path.abspath(name)
+
     for folder in folders:
+        folder_real = os.path.abspath(os.path.realpath(folder))
         candidate = os.path.abspath(os.path.realpath(os.path.join(folder, name)))
+        if os.path.commonpath([folder_real, candidate]) != folder_real:
+            continue
         if os.path.isfile(candidate):
             return candidate
 
-    return os.path.abspath(os.path.realpath(os.path.join(folders[0], name)))
+    # Fallback: construct a path within the first folder (may not exist).
+    fallback_root = os.path.abspath(os.path.realpath(folders[0]))
+    fallback = os.path.abspath(os.path.realpath(os.path.join(folders[0], name)))
+    if os.path.commonpath([fallback_root, fallback]) != fallback_root:
+        return fallback_root
+    return fallback
 
 
 def resolve_checkpoint_path(
