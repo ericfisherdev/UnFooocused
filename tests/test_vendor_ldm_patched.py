@@ -21,8 +21,8 @@ import pytest
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-_torch_available = bool(importlib.util.find_spec("torch"))
-requires_torch = pytest.mark.skipif(not _torch_available, reason="torch not available")
+_ldm_deps_available = all(importlib.util.find_spec(mod) is not None for mod in ("torch", "psutil", "scipy"))
+requires_torch = pytest.mark.skipif(not _ldm_deps_available, reason="torch/psutil/scipy not available")
 
 
 class TestLdmPatchedImportable:
@@ -47,7 +47,8 @@ class TestSdModuleCallable:
 
     @pytest.fixture(autouse=True)
     def _require_torch(self) -> None:
-        pytest.importorskip("torch", reason="torch required for sd module tests")
+        pytest.importorskip("torch", reason="ldm_patched deps required for sd module tests")
+        pytest.importorskip("psutil", reason="ldm_patched deps required for sd module tests")
 
     def test_load_checkpoint_guess_config_exists(self) -> None:
         from ldm_patched.modules import sd
@@ -65,7 +66,8 @@ class TestModelManagement:
 
     @pytest.fixture(autouse=True)
     def _require_torch(self) -> None:
-        pytest.importorskip("torch", reason="torch required for model_management tests")
+        pytest.importorskip("torch", reason="ldm_patched deps required for model_management tests")
+        pytest.importorskip("psutil", reason="ldm_patched deps required for model_management tests")
 
     def test_get_torch_device_exists(self) -> None:
         from ldm_patched.modules import model_management
@@ -85,7 +87,8 @@ class TestSamplerNames:
 
     @pytest.fixture(autouse=True)
     def _require_torch(self) -> None:
-        pytest.importorskip("torch", reason="torch required for samplers tests")
+        pytest.importorskip("torch", reason="ldm_patched deps required for samplers tests")
+        pytest.importorskip("scipy", reason="ldm_patched deps required for samplers tests")
 
     def test_sampler_names_exists(self) -> None:
         from ldm_patched.modules import samplers
