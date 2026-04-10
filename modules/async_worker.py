@@ -266,6 +266,8 @@ class Worker:
                 break
 
             filepath = self._generate_single_image(task, image_index, steps)
+            if filepath is None:
+                break
             output_paths.append(filepath)
 
         task.results = output_paths
@@ -276,11 +278,12 @@ class Worker:
         task: AsyncTask,
         image_index: int,
         steps: int,
-    ) -> str:
+    ) -> str | None:
         """Generate a single image with progress updates.
 
         Yields step-level progress events, creates a stub image, and
-        saves it to the output directory.
+        saves it to the output directory.  Returns ``None`` if the task
+        was stopped during step simulation — the caller must not save.
 
         Args:
             task: The parent task (for yielding progress).
@@ -288,9 +291,13 @@ class Worker:
             steps: Number of diffusion steps to simulate.
 
         Returns:
-            Absolute path to the saved image file.
+            Absolute path to the saved image file, or None if stopped.
         """
         self._yield_step_progress(task, image_index, steps)
+
+        if task.last_stop == "stop":
+            return None
+
         effective_seed = task.seed if task.disable_seed_increment else task.seed + image_index
         image = _generate_stub_image(task.width, task.height, effective_seed)
         return self._save_generated_image(task, image)
