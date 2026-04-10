@@ -28,16 +28,52 @@ def models_dir(tmp_path):
 def client_with_models(models_dir, monkeypatch):
     """Create a TestClient with config pointing at temp model dirs."""
     import modules.config as config
+    from modules.config import AppConfig, get_config, reset_config, set_config
 
+    # Build an AppConfig with temp model dirs and discovered files
+    base = get_config()
+    custom = AppConfig(
+        default_base_model_name=base.default_base_model_name,
+        default_refiner_model_name=base.default_refiner_model_name,
+        default_refiner_switch=base.default_refiner_switch,
+        default_performance=base.default_performance,
+        default_aspect_ratio=base.default_aspect_ratio,
+        available_aspect_ratios=base.available_aspect_ratios,
+        default_image_number=base.default_image_number,
+        default_max_image_number=base.default_max_image_number,
+        default_output_format=base.default_output_format,
+        default_prompt=base.default_prompt,
+        default_prompt_negative=base.default_prompt_negative,
+        default_styles=base.default_styles,
+        default_cfg_scale=base.default_cfg_scale,
+        default_sample_sharpness=base.default_sample_sharpness,
+        default_sampler=base.default_sampler,
+        default_scheduler=base.default_scheduler,
+        default_loras=base.default_loras,
+        default_loras_min_weight=base.default_loras_min_weight,
+        default_loras_max_weight=base.default_loras_max_weight,
+        default_max_lora_number=base.default_max_lora_number,
+        default_controlnet_image_count=base.default_controlnet_image_count,
+        default_enhance_tabs=base.default_enhance_tabs,
+        paths_checkpoints=[models_dir["checkpoints"]],
+        paths_loras=[models_dir["loras"]],
+        path_embeddings=base.path_embeddings,
+        path_outputs=base.path_outputs,
+        model_filenames=config.refresh_model_filenames([models_dir["checkpoints"]]),
+        lora_filenames=config.refresh_lora_filenames([models_dir["loras"]]),
+    )
+    set_config(custom)
+
+    # Also patch module-level globals for backward compatibility
     monkeypatch.setattr(config, "paths_checkpoints", [models_dir["checkpoints"]])
     monkeypatch.setattr(config, "paths_loras", [models_dir["loras"]])
-    # Trigger re-discovery after patching paths
     config.update_model_filenames()
     config.update_lora_filenames()
 
     from ui.app import app
 
-    return TestClient(app)
+    yield TestClient(app)
+    reset_config()
 
 
 class TestGetModels:
@@ -79,7 +115,42 @@ class TestGetModelsEmptyPaths:
 
     def test_empty_list_for_nonexistent_path(self, monkeypatch):
         import modules.config as config
+        from modules.config import AppConfig, get_config, reset_config, set_config
 
+        base = get_config()
+        custom = AppConfig(
+            default_base_model_name=base.default_base_model_name,
+            default_refiner_model_name=base.default_refiner_model_name,
+            default_refiner_switch=base.default_refiner_switch,
+            default_performance=base.default_performance,
+            default_aspect_ratio=base.default_aspect_ratio,
+            available_aspect_ratios=base.available_aspect_ratios,
+            default_image_number=base.default_image_number,
+            default_max_image_number=base.default_max_image_number,
+            default_output_format=base.default_output_format,
+            default_prompt=base.default_prompt,
+            default_prompt_negative=base.default_prompt_negative,
+            default_styles=base.default_styles,
+            default_cfg_scale=base.default_cfg_scale,
+            default_sample_sharpness=base.default_sample_sharpness,
+            default_sampler=base.default_sampler,
+            default_scheduler=base.default_scheduler,
+            default_loras=base.default_loras,
+            default_loras_min_weight=base.default_loras_min_weight,
+            default_loras_max_weight=base.default_loras_max_weight,
+            default_max_lora_number=base.default_max_lora_number,
+            default_controlnet_image_count=base.default_controlnet_image_count,
+            default_enhance_tabs=base.default_enhance_tabs,
+            paths_checkpoints=["/nonexistent/path"],
+            paths_loras=["/nonexistent/loras"],
+            path_embeddings=base.path_embeddings,
+            path_outputs=base.path_outputs,
+            model_filenames=[],
+            lora_filenames=[],
+        )
+        set_config(custom)
+
+        # Also patch module-level globals for backward compatibility
         monkeypatch.setattr(config, "paths_checkpoints", ["/nonexistent/path"])
         monkeypatch.setattr(config, "paths_loras", ["/nonexistent/loras"])
         config.update_model_filenames()
@@ -87,7 +158,10 @@ class TestGetModelsEmptyPaths:
 
         from ui.app import app
 
-        client = TestClient(app)
-        data = client.get("/api/models").json()
-        assert data["checkpoints"] == []
-        assert data["loras"] == []
+        try:
+            client = TestClient(app)
+            data = client.get("/api/models").json()
+            assert data["checkpoints"] == []
+            assert data["loras"] == []
+        finally:
+            reset_config()
