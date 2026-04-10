@@ -153,7 +153,7 @@ default_parameters: dict[str, tuple[float, float]] = {
 # Output formats
 # ---------------------------------------------------------------------------
 
-output_formats: list[str] = ["png", "jpeg", "webp"]
+output_formats: list[str] = ["png", "jpeg", "webp"]  # kept in sync with OutputFormat.list()
 
 # ---------------------------------------------------------------------------
 # Inpainting
@@ -312,9 +312,8 @@ class Performance(Enum):
     @classmethod
     def has_restricted_features(cls, x: Performance | str) -> bool:
         """Return True if the preset restricts certain generation features."""
-        if isinstance(x, Performance):
-            x = x.value
-        return x in [cls.EXTREME_SPEED.value, cls.LIGHTNING.value, cls.HYPER_SD.value]
+        value = x.value if isinstance(x, Performance) else x
+        return value in _RESTRICTED_PERFORMANCE_VALUES
 
     def steps(self) -> int | None:
         """Return the step count for this preset, or None if not defined."""
@@ -327,3 +326,14 @@ class Performance(Enum):
     def lora_filename(self) -> str | None:
         """Return the LoRA filename for this preset, or None."""
         return PerformanceLoRA[self.name].value if self.name in PerformanceLoRA.__members__ else None
+
+
+# Presets that restrict generation features (e.g., no refiner support).
+# Defined after the class so the enum members are available.
+_RESTRICTED_PERFORMANCE_VALUES: frozenset[str] = frozenset(
+    {
+        Performance.EXTREME_SPEED.value,
+        Performance.LIGHTNING.value,
+        Performance.HYPER_SD.value,
+    }
+)
