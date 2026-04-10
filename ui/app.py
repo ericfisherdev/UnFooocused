@@ -1,7 +1,6 @@
 """
-FwdFooocus New UI - FastAPI Application
+UnFooocused - FastAPI Application
 
-Runs alongside the existing Gradio server on a separate port.
 Serves the Alpine.js/HTMX/GSAP frontend via Jinja2 templates.
 Shares the same backend modules (async_worker, config, lora_metadata).
 """
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).parent
 
-app = FastAPI(title="FwdFooocus", docs_url=None, redoc_url=None)
+app = FastAPI(title="UnFooocused", docs_url=None, redoc_url=None)
 
 app.mount(
     "/static",
