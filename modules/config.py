@@ -131,6 +131,7 @@ def _discover_files(paths: list[str], extension: str = ".safetensors") -> list[s
         (e.g. ``pony/model.safetensors``).
     """
     found: set[str] = set()
+    ext_lower = extension.lower()
     for directory in paths:
         root_path = Path(directory)
         if not root_path.is_dir():
@@ -139,7 +140,7 @@ def _discover_files(paths: list[str], extension: str = ".safetensors") -> list[s
             for file_path in root_path.rglob("*"):
                 if not file_path.is_file():
                     continue
-                if not file_path.name.lower().endswith(extension):
+                if not file_path.name.lower().endswith(ext_lower):
                     continue
                 relative = file_path.relative_to(root_path)
                 found.add(relative.as_posix())
