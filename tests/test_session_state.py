@@ -14,9 +14,8 @@ Tests are ordered by TDD cycle:
 
 import sqlite3
 
-import pytest
-
 import modules.session_state as session_state_module
+import pytest
 from modules.session_state import load_state, save_state
 
 
