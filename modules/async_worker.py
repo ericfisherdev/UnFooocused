@@ -185,6 +185,18 @@ class AsyncTask:
         self.enhance_uov_processing_order: str = args.pop()
         self.enhance_uov_prompt_type: str = args.pop()
 
+    @property
+    def effective_steps(self) -> int:
+        """Return the step count to use for generation.
+
+        If ``overwrite_step`` is positive the user explicitly chose a step
+        count and it takes precedence.  Otherwise fall back to the
+        performance-preset value (``self.steps``), defaulting to 30.
+        """
+        if hasattr(self, "overwrite_step") and self.overwrite_step > 0:
+            return self.overwrite_step
+        return self.steps or 30
+
 
 # ---------------------------------------------------------------------------
 # Resolution parsing
@@ -251,7 +263,7 @@ class Worker:
         for lora_name, lora_weight in task.loras:
             logger.info("Applying LoRA: %s (weight=%.2f)", lora_name, lora_weight)
 
-        steps = task.overwrite_step if task.overwrite_step > 0 else (task.steps or 30)
+        steps = task.effective_steps
         output_paths: list[str] = []
 
         for image_index in range(task.image_number):
@@ -342,13 +354,12 @@ class Worker:
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
-        effective_steps = task.overwrite_step if task.overwrite_step > 0 else (task.steps or 30)
         if task.save_metadata_to_images:
             metadata = [
                 ("Prompt", "prompt", task.prompt),
-                ("Steps", "steps", str(effective_steps)),
+                ("Steps", "steps", str(task.effective_steps)),
             ]
-            parsed_parameters = f"{task.prompt}\nSteps: {effective_steps}"
+            parsed_parameters = f"{task.prompt}\nSteps: {task.effective_steps}"
         else:
             metadata = []
             parsed_parameters = ""
