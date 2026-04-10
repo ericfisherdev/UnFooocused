@@ -471,26 +471,37 @@ class TestWorkerCancellation:
     """Setting task.last_stop cancels generation."""
 
     def test_cancel_stops_producing_images(self, tmp_path):
-        """When last_stop is set, the worker should stop early."""
+        """When last_stop is set between images, the worker stops producing more."""
         from modules.async_worker import AsyncTask, Worker
 
         args = _minimal_args_list()
-        # Request many images so we have time to cancel
+        # Request many images
         args[6] = 10  # image_number
 
         task = AsyncTask(args)
-        # Set cancellation before processing — worker should detect it
-        # and stop producing after checking
-        task.last_stop = "stop"
-
         worker = Worker(output_dir=str(tmp_path))
+
+        # Monkey-patch _generate_single_image to set last_stop after 3rd image
+        original_generate = worker._generate_single_image
+        call_count = 0
+
+        def cancelling_generate(t, idx, steps):
+            nonlocal call_count
+            result = original_generate(t, idx, steps)
+            call_count += 1
+            if call_count >= 3:
+                t.last_stop = "stop"
+            return result
+
+        worker._generate_single_image = cancelling_generate
+
         worker.process_task(task)
 
         finish_events = [y for y in task.yields if y[0] == "finish"]
         assert len(finish_events) == 1
-        # Should have fewer images than requested because we cancelled
+        # Should have exactly 3 images (cancelled after 3rd, checked at top of 4th iteration)
         paths = finish_events[0][1]
-        assert len(paths) < 10
+        assert len(paths) == 3
 
 
 # ---------------------------------------------------------------------------
