@@ -10,6 +10,9 @@ dependencies = [
     "Pillow>=10.0",
     "safetensors>=0.4",
     "websockets>=13.0",
+    "torch>=2.1",
+    "einops>=0.7",
+    "transformers>=4.36",
 ]
 
 [project.optional-dependencies]
@@ -28,7 +31,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["modules*", "ui*"]
+include = ["modules*", "ui*", "ldm_patched*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -38,6 +41,7 @@ pythonpath = ["."]
 target-version = "py310"
 line-length = 120
 src = ["modules", "ui", "tests"]
+exclude = ["ldm_patched/**"]
 
 [tool.ruff.lint]
 select = [
@@ -68,5 +72,5 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.bandit]
-exclude_dirs = ["tests"]
+exclude_dirs = ["tests", "ldm_patched"]
 skips = ["B101"]
