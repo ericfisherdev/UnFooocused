@@ -57,6 +57,12 @@ def generate_temp_filename(
 # ---------------------------------------------------------------------------
 
 
+_EXIF_FORMAT_OPTIONS: dict[str, dict[str, object]] = {
+    "jpeg": {"quality": 95, "optimize": True, "progressive": True},
+    "webp": {"quality": 95, "lossless": False},
+}
+
+
 def save_image(
     *,
     image: Image,
@@ -82,10 +88,8 @@ def save_image(
     """
     if output_format == "png":
         _save_png(image, filepath, parsed_parameters)
-    elif output_format == "jpeg":
-        _save_jpeg(image, filepath, parsed_parameters)
-    elif output_format == "webp":
-        _save_webp(image, filepath, parsed_parameters)
+    elif output_format in _EXIF_FORMAT_OPTIONS:
+        _save_with_exif(image, filepath, parsed_parameters, _EXIF_FORMAT_OPTIONS[output_format])
     else:
         image.save(filepath)
 
@@ -105,22 +109,18 @@ def _save_png(image: Image, filepath: str, parsed_parameters: str) -> None:
     image.save(filepath, pnginfo=pnginfo)
 
 
-def _save_jpeg(image: Image, filepath: str, parsed_parameters: str) -> None:
-    """Save JPEG with optional EXIF metadata."""
+def _save_with_exif(
+    image: Image,
+    filepath: str,
+    parsed_parameters: str,
+    format_options: dict[str, object],
+) -> None:
+    """Save JPEG or WebP with optional EXIF metadata and format-specific options."""
     exif_bytes = _build_exif(parsed_parameters) if parsed_parameters else b""
+    kwargs = dict(format_options)
     if exif_bytes:
-        image.save(filepath, quality=95, optimize=True, progressive=True, exif=exif_bytes)
-    else:
-        image.save(filepath, quality=95, optimize=True, progressive=True)
-
-
-def _save_webp(image: Image, filepath: str, parsed_parameters: str) -> None:
-    """Save WebP with optional EXIF metadata."""
-    exif_bytes = _build_exif(parsed_parameters) if parsed_parameters else b""
-    if exif_bytes:
-        image.save(filepath, quality=95, lossless=False, exif=exif_bytes)
-    else:
-        image.save(filepath, quality=95, lossless=False)
+        kwargs["exif"] = exif_bytes
+    image.save(filepath, **kwargs)
 
 
 def _build_exif(parsed_parameters: str) -> bytes:
