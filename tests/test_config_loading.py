@@ -68,5 +68,5 @@ class TestConfigDefaults:
         from modules.config import get_config
 
         cfg = get_config()
-        assert isinstance(cfg.model_filenames, list)
-        assert isinstance(cfg.lora_filenames, list)
+        assert isinstance(cfg.model_filenames, tuple)
+        assert isinstance(cfg.lora_filenames, tuple)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -173,18 +174,18 @@ class AppConfig:
     default_refiner_switch: float
     default_performance: str
     default_aspect_ratio: str
-    available_aspect_ratios: list[str]
+    available_aspect_ratios: tuple[str, ...]
     default_image_number: int
     default_max_image_number: int
     default_output_format: str
     default_prompt: str
     default_prompt_negative: str
-    default_styles: list[str]
+    default_styles: tuple[str, ...]
     default_cfg_scale: float
     default_sample_sharpness: float
     default_sampler: str
     default_scheduler: str
-    default_loras: list
+    default_loras: tuple[tuple, ...]
     default_loras_min_weight: float
     default_loras_max_weight: float
     default_max_lora_number: int
@@ -192,14 +193,14 @@ class AppConfig:
     default_enhance_tabs: int
 
     # Paths
-    paths_checkpoints: list[str]
-    paths_loras: list[str]
+    paths_checkpoints: tuple[str, ...]
+    paths_loras: tuple[str, ...]
     path_embeddings: str
     path_outputs: str
 
     # Discovered model files
-    model_filenames: list[str]
-    lora_filenames: list[str]
+    model_filenames: tuple[str, ...]
+    lora_filenames: tuple[str, ...]
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> AppConfig:
@@ -217,29 +218,29 @@ class AppConfig:
             default_refiner_switch=float(raw["default_refiner_switch"]),
             default_performance=raw["default_performance"],
             default_aspect_ratio=raw["default_aspect_ratio"],
-            available_aspect_ratios=raw["available_aspect_ratios"],
+            available_aspect_ratios=tuple(raw["available_aspect_ratios"]),
             default_image_number=int(raw["default_image_number"]),
             default_max_image_number=int(raw["default_max_image_number"]),
             default_output_format=raw["default_output_format"],
             default_prompt=raw["default_prompt"],
             default_prompt_negative=raw["default_prompt_negative"],
-            default_styles=raw["default_styles"],
+            default_styles=tuple(raw["default_styles"]),
             default_cfg_scale=float(raw["default_cfg_scale"]),
             default_sample_sharpness=float(raw["default_sample_sharpness"]),
             default_sampler=raw["default_sampler"],
             default_scheduler=raw["default_scheduler"],
-            default_loras=raw["default_loras"],
+            default_loras=tuple(tuple(lora) for lora in raw["default_loras"]),
             default_loras_min_weight=float(raw["default_loras_min_weight"]),
             default_loras_max_weight=float(raw["default_loras_max_weight"]),
             default_max_lora_number=int(raw["default_max_lora_number"]),
             default_controlnet_image_count=int(raw["default_controlnet_image_count"]),
             default_enhance_tabs=int(raw["default_enhance_tabs"]),
-            paths_checkpoints=paths_checkpoints,
-            paths_loras=paths_loras,
+            paths_checkpoints=tuple(paths_checkpoints),
+            paths_loras=tuple(paths_loras),
             path_embeddings=raw["path_embeddings"],
             path_outputs=raw["path_outputs"],
-            model_filenames=_discover_files(paths_checkpoints),
-            lora_filenames=_discover_files(paths_loras),
+            model_filenames=tuple(_discover_files(paths_checkpoints)),
+            lora_filenames=tuple(_discover_files(paths_loras)),
         )
 
 
@@ -248,29 +249,35 @@ class AppConfig:
 # ---------------------------------------------------------------------------
 
 _app_config: AppConfig | None = None
+_config_lock = threading.Lock()
 
 
 def get_config() -> AppConfig:
     """Return the application configuration singleton.
 
     Lazily initializes on first call by loading from ``config.txt``.
+    Uses double-checked locking for thread safety.
     """
     global _app_config
     if _app_config is None:
-        _app_config = AppConfig.from_dict(load_config())
+        with _config_lock:
+            if _app_config is None:
+                _app_config = AppConfig.from_dict(load_config())
     return _app_config
 
 
 def set_config(config: AppConfig) -> None:
     """Override the singleton with *config* (for testing)."""
     global _app_config
-    _app_config = config
+    with _config_lock:
+        _app_config = config
 
 
 def reset_config() -> None:
     """Clear the singleton so the next ``get_config()`` reinitializes."""
     global _app_config
-    _app_config = None
+    with _config_lock:
+        _app_config = None
 
 
 # ---------------------------------------------------------------------------

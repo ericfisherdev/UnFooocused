@@ -38,21 +38,21 @@ class TestAppConfigConstruction:
 
         raw = load_config(config_path=tmp_path / "config.txt")
         cfg = AppConfig.from_dict(raw)
-        assert isinstance(cfg.paths_checkpoints, list)
+        assert isinstance(cfg.paths_checkpoints, tuple)
 
     def test_has_typed_field_model_filenames(self, tmp_path):
         from modules.config import AppConfig, load_config
 
         raw = load_config(config_path=tmp_path / "config.txt")
         cfg = AppConfig.from_dict(raw)
-        assert isinstance(cfg.model_filenames, list)
+        assert isinstance(cfg.model_filenames, tuple)
 
     def test_has_typed_field_lora_filenames(self, tmp_path):
         from modules.config import AppConfig, load_config
 
         raw = load_config(config_path=tmp_path / "config.txt")
         cfg = AppConfig.from_dict(raw)
-        assert isinstance(cfg.lora_filenames, list)
+        assert isinstance(cfg.lora_filenames, tuple)
 
     def test_custom_values_from_dict(self, tmp_path):
         config_file = tmp_path / "config.txt"
@@ -137,29 +137,29 @@ class TestAppConfigDirectConstruction:
             default_refiner_switch=0.5,
             default_performance="Speed",
             default_aspect_ratio="1024*1024",
-            available_aspect_ratios=["1024*1024"],
+            available_aspect_ratios=("1024*1024",),
             default_image_number=1,
             default_max_image_number=32,
             default_output_format="png",
             default_prompt="",
             default_prompt_negative="",
-            default_styles=[],
+            default_styles=(),
             default_cfg_scale=4.0,
             default_sample_sharpness=2.0,
             default_sampler="dpmpp_2m_sde_gpu",
             default_scheduler="karras",
-            default_loras=[],
+            default_loras=(),
             default_loras_min_weight=-2.0,
             default_loras_max_weight=2.0,
             default_max_lora_number=5,
             default_controlnet_image_count=4,
             default_enhance_tabs=3,
-            paths_checkpoints=["./models/checkpoints"],
-            paths_loras=["./models/loras"],
+            paths_checkpoints=("./models/checkpoints",),
+            paths_loras=("./models/loras",),
             path_embeddings="./models/embeddings",
             path_outputs="./outputs",
-            model_filenames=[],
-            lora_filenames=[],
+            model_filenames=(),
+            lora_filenames=(),
         )
         assert cfg.default_base_model_name == "test_model.safetensors"
         assert cfg.default_cfg_scale == pytest.approx(4.0)
