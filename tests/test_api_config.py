@@ -13,7 +13,7 @@ def client():
     """Create a TestClient against the real FastAPI app.
 
     Imports are deferred so the config module must be importable
-    from UnFooocused's own modules/ — not FwdFooocus.
+    from UnFooocused's own modules/.
     """
     from ui.app import app
 

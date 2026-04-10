@@ -1,5 +1,5 @@
 /*
- * FwdFooocus Design Tokens
+ * UnFooocused Design Tokens
  *
  * 3-tier token system: Global (primitives) → Semantic (roles) → Component (overrides).
  * Components reference Tier 2 semantic tokens. Tier 1 globals are never used directly.
