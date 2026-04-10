@@ -42,7 +42,7 @@ class TestConfigFromFile:
         # Explicitly set field should be custom
         assert result["default_model"] == "partial_model.safetensors"
         # Unset fields should have sensible defaults
-        assert isinstance(result["default_cfg_scale"], (int, float))
+        assert isinstance(result["default_cfg_scale"], int | float)
         assert isinstance(result["default_sampler"], str)
         assert result["default_sampler"] != ""
 
@@ -59,8 +59,8 @@ class TestConfigDefaults:
         assert isinstance(result["default_aspect_ratio"], str)
         assert isinstance(result["available_aspect_ratios"], list)
         assert len(result["available_aspect_ratios"]) >= 3
-        assert isinstance(result["default_cfg_scale"], (int, float))
-        assert isinstance(result["default_sample_sharpness"], (int, float))
+        assert isinstance(result["default_cfg_scale"], int | float)
+        assert isinstance(result["default_sample_sharpness"], int | float)
         assert isinstance(result["default_sampler"], str)
         assert isinstance(result["default_scheduler"], str)
 

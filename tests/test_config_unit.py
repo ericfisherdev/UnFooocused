@@ -154,7 +154,7 @@ class TestLoadConfigPartial:
         # Explicitly set
         assert result["default_model"] == "partial.safetensors"
         # Should still have defaults for everything else
-        assert isinstance(result["default_cfg_scale"], (int, float))
+        assert isinstance(result["default_cfg_scale"], int | float)
         assert isinstance(result["default_sampler"], str)
         assert result["default_sampler"] != ""
         assert isinstance(result["available_aspect_ratios"], list)

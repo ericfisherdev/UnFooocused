@@ -8,14 +8,13 @@ Each test drives one behavior. Tests are ordered by TDD cycle:
 5. is_browser_connected() default timeout is 15 seconds
 """
 
-import pytest
-
 import modules.heartbeat as heartbeat_module
-
+import pytest
 
 # ---------------------------------------------------------------------------
 # Test double: fake time module
 # ---------------------------------------------------------------------------
+
 
 class _FakeTimeModule:
     """Replaces the `time` module within heartbeat to control time.time()."""
