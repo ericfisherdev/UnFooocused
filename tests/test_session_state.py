@@ -44,9 +44,7 @@ class TestTableCreation:
         db_path = str(tmp_path / "test_session_states.db")
         save_state("pony", {"prompt": "a horse"})
         conn = sqlite3.connect(db_path)
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='session_states'"
-        )
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session_states'")
         assert cursor.fetchone() is not None
         conn.close()
 
