@@ -6,7 +6,7 @@ Validates acceptance criteria for UNF-30:
 3. ldm_patched.modules.model_management.get_torch_device returns a torch.device
 4. ldm_patched.modules.samplers exposes sampler and scheduler names
 5. torch, einops, safetensors, transformers are declared in pyproject.toml
-6. No FwdFooocus-specific references remain in vendored code
+6. No upstream-specific references remain in vendored code
 7. Existing tests continue to pass (covered by running full suite)
 """
 
@@ -157,8 +157,8 @@ class TestDependenciesDeclared:
         assert "transformers" in dep_names, f"transformers not found in dependencies: {deps}"
 
 
-class TestNoFwdFooocusReferences:
-    """AC-6: No FwdFooocus-specific references remain in vendored code."""
+class TestNoUpstreamReferences:
+    """AC-6: No upstream-specific references remain in vendored code."""
 
     def _grep_ldm_patched(self, pattern: str) -> str:
         """Search ldm_patched/ for a pattern, return matching lines."""
@@ -178,7 +178,7 @@ class TestNoFwdFooocusReferences:
         assert matches == "", f"Found args_manager references:\n{matches}"
 
     def test_no_fwdfooocus_shared_references(self) -> None:
-        """No imports of FwdFooocus 'shared' module."""
+        """No imports of upstream 'shared' module."""
         matches = self._grep_ldm_patched(r"from modules\.shared\|import modules\.shared\|from shared import")
         assert matches == "", f"Found shared module references:\n{matches}"
 
@@ -187,6 +187,6 @@ class TestNoFwdFooocusReferences:
         assert matches == "", f"Found gradio references:\n{matches}"
 
     def test_no_fwdfooocus_config_references(self) -> None:
-        """No imports of FwdFooocus 'modules.config'."""
+        """No imports of upstream 'modules.config'."""
         matches = self._grep_ldm_patched(r"from modules\.config\|import modules\.config")
-        assert matches == "", f"Found FwdFooocus modules.config references:\n{matches}"
+        assert matches == "", f"Found upstream modules.config references:\n{matches}"
