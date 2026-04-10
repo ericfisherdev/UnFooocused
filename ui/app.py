@@ -5,13 +5,20 @@ Serves the Alpine.js/HTMX/GSAP frontend via Jinja2 templates.
 Shares the same backend modules (async_worker, config, lora_metadata).
 """
 
+from __future__ import annotations
+
 import asyncio
 import base64
 import logging
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from urllib.parse import urlsplit
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from modules.async_worker import AsyncTask
 
 import modules.config as config
 import modules.lora_metadata as lora_metadata
@@ -42,7 +49,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "base.html")
 
 
@@ -52,7 +59,7 @@ async def index(request: Request):
 
 
 @app.post("/api/lora-library-rescan")
-async def lora_library_rescan():
+async def lora_library_rescan() -> dict:
     """Trigger a rescan of the LoRA library."""
     scanner = lora_metadata.get_scanner()
     if scanner.is_scanning:
@@ -62,7 +69,7 @@ async def lora_library_rescan():
 
 
 @app.get("/api/lora-library-scan-status")
-async def lora_library_scan_status():
+async def lora_library_scan_status() -> dict:
     """Get the current scan status."""
     scanner = lora_metadata.get_scanner()
     stats = scanner.scan_stats
@@ -77,13 +84,13 @@ async def lora_library_scan_status():
 
 
 @app.get("/api/lora-library-data")
-async def lora_library_data():
+async def lora_library_data() -> list:
     """Get all LoRA metadata for the library/picker."""
     return lora_metadata.get_all_library_data()
 
 
 @app.get("/api/lora-trigger-words")
-async def lora_trigger_words(filename: Annotated[str, Query(description="LoRA filename or relative path")]):
+async def lora_trigger_words(filename: Annotated[str, Query(description="LoRA filename or relative path")]) -> dict:
     """Get trigger words for a specific LoRA."""
     trigger_words = lora_metadata.get_trigger_words_for_filename(filename)
     return {"filename": filename, "trigger_words": trigger_words}
@@ -95,7 +102,7 @@ async def lora_trigger_words(filename: Annotated[str, Query(description="LoRA fi
 
 
 @app.post("/api/heartbeat")
-async def heartbeat_ping():
+async def heartbeat_ping() -> dict:
     """Receive a heartbeat ping from the browser client."""
     update_heartbeat()
     return {"ok": True}
@@ -107,7 +114,7 @@ async def heartbeat_ping():
 
 
 @app.get("/api/config")
-async def get_app_config():
+async def get_app_config() -> dict:
     """Return UI-relevant config values."""
     cfg = config.get_config()
     return {
@@ -136,7 +143,7 @@ async def get_app_config():
 
 
 @app.get("/api/models")
-async def get_models():
+async def get_models() -> dict:
     """Return available checkpoints, refiners, and VAEs."""
     cfg = config.get_config()
     return {
@@ -146,7 +153,7 @@ async def get_models():
 
 
 @app.get("/api/styles")
-async def get_styles():
+async def get_styles() -> dict:
     """Return available style names."""
     from modules.sdxl_styles import legal_style_names
 
@@ -154,7 +161,7 @@ async def get_styles():
 
 
 @app.get("/api/samplers")
-async def get_samplers():
+async def get_samplers() -> dict:
     """Return available sampler and scheduler names."""
     from modules.flags import sampler_list, scheduler_list
 
@@ -301,7 +308,7 @@ def _build_generate_args(body: dict) -> list:
 
 
 @app.post("/api/generate")
-async def generate(request: Request):
+async def generate(request: Request) -> dict:
     """Submit a generation job to the async task queue."""
     from modules.async_worker import AsyncTask, async_tasks
 
@@ -313,7 +320,7 @@ async def generate(request: Request):
 
 
 @app.post("/api/generate/stop")
-async def generate_stop():
+async def generate_stop() -> dict:
     """Stop the current generation.
 
     The worker pops the active task from async_tasks before processing,
@@ -421,7 +428,7 @@ def _reject_mismatched_origin(websocket: WebSocket) -> bool:
     return (origin_host, origin_port) != (request_host, request_port)
 
 
-def _find_processing_task(async_tasks, current_task):
+def _find_processing_task(async_tasks: list[AsyncTask], current_task: AsyncTask | None) -> AsyncTask | None:
     """Return the first processing task from the queue or current_task."""
     for task in list(async_tasks):
         if task.processing:
@@ -433,7 +440,9 @@ def _find_processing_task(async_tasks, current_task):
     return None
 
 
-async def _drain_remaining_yields(task, yield_index: int, send_fn) -> None:
+async def _drain_remaining_yields(
+    task: AsyncTask, yield_index: int, send_fn: Callable[[dict], Awaitable[None]]
+) -> None:
     """Forward any un-sent yields from a task that just finished."""
     for flag, product in task.yields[yield_index:]:
         msg = _build_yield_message(flag, product)
@@ -442,7 +451,7 @@ async def _drain_remaining_yields(task, yield_index: int, send_fn) -> None:
 
 
 @app.websocket("/ws/generation")
-async def ws_generation(websocket: WebSocket):
+async def ws_generation(websocket: WebSocket) -> None:
     """
     Stream generation progress to the client.
 
