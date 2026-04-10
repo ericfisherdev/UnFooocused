@@ -43,8 +43,8 @@ _SOURCE_DIRS = ["modules", "ui"]
 # FwdFooocus-specific import prefixes that must not appear in our codebase.
 _FWDFOOOCUS_IMPORT_PREFIXES = (
     "modules.patch",
-    "extras.",
-    "ldm_patched.",
+    "extras",
+    "ldm_patched",
     "args_manager",
     "launch",
     "webui",
@@ -336,7 +336,7 @@ class TestFullGenerationFlow:
         import re
 
         for subdir in subdirs:
-            assert re.match(r"\d{4}-\d{2}-\d{2}", subdir.name), (
+            assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", subdir.name), (
                 f"Subdirectory '{subdir.name}' does not match YYYY-MM-DD pattern"
             )
 
@@ -454,8 +454,8 @@ class TestFullGenerationFlow:
 
         files_first = list(_output_dir.rglob("*.png"))
         assert len(files_first) == 1
-        img1 = Image.open(files_first[0])
-        pixels1 = list(img1.get_flattened_data())
+        with Image.open(files_first[0]) as img1:
+            pixels1 = img1.tobytes()
 
         # Generate again with the same seed in a separate invocation
         client.post(
@@ -468,8 +468,8 @@ class TestFullGenerationFlow:
         assert len(files_second) == 2  # both runs produced files
         # The newest file is the second generation
         newest = max(files_second, key=lambda p: p.stat().st_mtime)
-        img2 = Image.open(newest)
-        pixels2 = list(img2.get_flattened_data())
+        with Image.open(newest) as img2:
+            pixels2 = img2.tobytes()
 
         assert pixels1 == pixels2, "Same seed should produce identical stub images"
 
@@ -532,86 +532,102 @@ class TestGenerationStop:
 
 
 @_requires_pil
-class TestLogHtmlGeneration:
-    """Verify log.html is created and contains image entries after generation."""
+class TestLogHtmlWorkerIntegration:
+    """E2E: Verify the worker produces log.html after generation.
 
-    def test_log_html_created_after_generation(self, client: TestClient, _output_dir, _clean_task_queue):
-        """log.html should exist in the date-based output folder after generation.
+    These tests check the true end-to-end path: the worker should create
+    log.html as part of its generation pipeline, without manual calls to
+    update_log_html(). Currently marked xfail because the worker does not
+    yet own the log.html write — this drives future implementation.
+    """
 
-        Note: The current worker does not call update_log_html() — that is
-        expected to be added in a future task. This test documents the
-        expected behavior so it can drive the implementation.
-        """
-        from modules.output import update_log_html
-
+    @pytest.mark.xfail(reason="Worker does not yet call update_log_html(); drives future implementation", strict=False)
+    def test_worker_creates_log_html_after_generation(self, client: TestClient, _output_dir, _clean_task_queue):
+        """log.html should exist in the date folder after the worker processes a task."""
         client.post("/api/generate", json=_generate_request_body())
         _run_worker_on_pending_tasks(str(_output_dir))
 
-        # Find the date directory and manually invoke log update
-        # (the worker currently saves images but does not update log.html)
         png_files = list(_output_dir.rglob("*.png"))
         assert len(png_files) >= 1
 
         date_dir = png_files[0].parent
         log_path = date_dir / "log.html"
+        assert log_path.exists(), "Worker did not create log.html after generation"
 
-        # Manually create the log entry to verify the log module works
+    @pytest.mark.xfail(reason="Worker does not yet call update_log_html(); drives future implementation", strict=False)
+    def test_worker_log_html_references_generated_image(self, client: TestClient, _output_dir, _clean_task_queue):
+        """log.html produced by the worker should reference the generated image."""
+        client.post("/api/generate", json=_generate_request_body())
+        _run_worker_on_pending_tasks(str(_output_dir))
+
+        png_files = list(_output_dir.rglob("*.png"))
+        assert len(png_files) >= 1
+
+        date_dir = png_files[0].parent
+        log_path = date_dir / "log.html"
+        assert log_path.exists(), "Worker did not create log.html"
+
+        content = log_path.read_text(encoding="utf-8")
+        assert png_files[0].name in content, "log.html does not reference the generated image"
+
+
+@_requires_pil
+class TestLogHtmlModule:
+    """Unit-level: Verify update_log_html() produces correct output.
+
+    These tests exercise the log module directly to confirm it writes
+    valid HTML with image entries and metadata. They are isolated from
+    the worker pipeline and validate the output module in its own right.
+    """
+
+    def test_update_log_html_creates_file(self, _output_dir):
+        """update_log_html() creates a log.html file with expected content."""
         import datetime
 
+        from modules.output import update_log_html
+
+        log_path = _output_dir / "log.html"
         date_string = datetime.datetime.now().strftime("%Y-%m-%d")
         update_log_html(
             html_path=str(log_path),
-            image_filename=png_files[0].name,
+            image_filename="test_image.png",
             metadata=[("Prompt", "prompt", "e2e test prompt")],
             date_string=date_string,
         )
 
         assert log_path.exists(), "log.html was not created"
 
-    def test_log_html_contains_image_entry(self, client: TestClient, _output_dir, _clean_task_queue):
-        """log.html content references the generated image filename."""
-        from modules.output import update_log_html
-
-        client.post("/api/generate", json=_generate_request_body())
-        _run_worker_on_pending_tasks(str(_output_dir))
-
-        png_files = list(_output_dir.rglob("*.png"))
-        assert len(png_files) >= 1
-
-        date_dir = png_files[0].parent
-        log_path = date_dir / "log.html"
-
+    def test_update_log_html_contains_image_entry(self, _output_dir):
+        """log.html content references the image filename and has a title."""
         import datetime
 
+        from modules.output import update_log_html
+
+        log_path = _output_dir / "log.html"
+        image_name = "test_image_entry.png"
         date_string = datetime.datetime.now().strftime("%Y-%m-%d")
         update_log_html(
             html_path=str(log_path),
-            image_filename=png_files[0].name,
+            image_filename=image_name,
             metadata=[("Prompt", "prompt", "e2e test prompt")],
             date_string=date_string,
         )
 
         content = log_path.read_text(encoding="utf-8")
-        assert png_files[0].name in content, "log.html does not reference the generated image"
+        assert image_name in content, "log.html does not reference the image"
         assert "UnFooocused Log" in content, "log.html missing title"
 
-    def test_log_html_contains_metadata(self, client: TestClient, _output_dir, _clean_task_queue):
+    def test_update_log_html_contains_metadata(self, _output_dir):
         """log.html includes metadata entries in its HTML tables."""
-        from modules.output import update_log_html
-
-        client.post("/api/generate", json=_generate_request_body())
-        _run_worker_on_pending_tasks(str(_output_dir))
-
-        png_files = list(_output_dir.rglob("*.png"))
-        date_dir = png_files[0].parent
-        log_path = date_dir / "log.html"
-
         import datetime
 
+        from modules.output import update_log_html
+
+        log_path = _output_dir / "log.html"
         date_string = datetime.datetime.now().strftime("%Y-%m-%d")
         update_log_html(
             html_path=str(log_path),
-            image_filename=png_files[0].name,
+            image_filename="test_metadata.png",
             metadata=[
                 ("Prompt", "prompt", "e2e test prompt"),
                 ("Steps", "steps", "30"),
