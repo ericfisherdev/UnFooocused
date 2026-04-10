@@ -770,8 +770,10 @@ class LoraMetadataScanner:
         """Load LoRA directory paths from config."""
         try:
             # Import here to avoid circular imports
-            from modules.config import paths_loras
+            from modules.config import get_config
 
+            cfg = get_config()
+            paths_loras = cfg.paths_loras
             if isinstance(paths_loras, list):
                 return [str(p) for p in paths_loras]
             elif paths_loras:

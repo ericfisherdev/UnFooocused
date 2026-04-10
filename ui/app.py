@@ -107,38 +107,40 @@ async def heartbeat_ping():
 
 
 @app.get("/api/config")
-async def get_config():
+async def get_app_config():
     """Return UI-relevant config values."""
+    cfg = config.get_config()
     return {
-        "default_model": config.default_base_model_name,
-        "default_refiner": config.default_refiner_model_name,
-        "default_refiner_switch": config.default_refiner_switch,
-        "default_performance": config.default_performance,
-        "default_aspect_ratio": config.default_aspect_ratio,
-        "available_aspect_ratios": config.available_aspect_ratios,
-        "default_image_number": config.default_image_number,
-        "max_image_number": config.default_max_image_number,
-        "default_output_format": config.default_output_format,
-        "default_prompt": config.default_prompt,
-        "default_prompt_negative": config.default_prompt_negative,
-        "default_styles": config.default_styles,
-        "default_cfg_scale": config.default_cfg_scale,
-        "default_sample_sharpness": config.default_sample_sharpness,
-        "default_sampler": config.default_sampler,
-        "default_scheduler": config.default_scheduler,
-        "default_loras": config.default_loras,
-        "default_loras_min_weight": config.default_loras_min_weight,
-        "default_loras_max_weight": config.default_loras_max_weight,
-        "default_max_lora_number": config.default_max_lora_number,
+        "default_model": cfg.default_base_model_name,
+        "default_refiner": cfg.default_refiner_model_name,
+        "default_refiner_switch": cfg.default_refiner_switch,
+        "default_performance": cfg.default_performance,
+        "default_aspect_ratio": cfg.default_aspect_ratio,
+        "available_aspect_ratios": cfg.available_aspect_ratios,
+        "default_image_number": cfg.default_image_number,
+        "max_image_number": cfg.default_max_image_number,
+        "default_output_format": cfg.default_output_format,
+        "default_prompt": cfg.default_prompt,
+        "default_prompt_negative": cfg.default_prompt_negative,
+        "default_styles": cfg.default_styles,
+        "default_cfg_scale": cfg.default_cfg_scale,
+        "default_sample_sharpness": cfg.default_sample_sharpness,
+        "default_sampler": cfg.default_sampler,
+        "default_scheduler": cfg.default_scheduler,
+        "default_loras": cfg.default_loras,
+        "default_loras_min_weight": cfg.default_loras_min_weight,
+        "default_loras_max_weight": cfg.default_loras_max_weight,
+        "default_max_lora_number": cfg.default_max_lora_number,
     }
 
 
 @app.get("/api/models")
 async def get_models():
     """Return available checkpoints, refiners, and VAEs."""
+    cfg = config.get_config()
     return {
-        "checkpoints": config.model_filenames,
-        "loras": config.lora_filenames,
+        "checkpoints": cfg.model_filenames,
+        "loras": cfg.lora_filenames,
     }
 
 
@@ -171,17 +173,14 @@ def _build_generate_args(body: dict) -> list:
     in the same order that webui.py's generate_clicked() does.
     Params not exposed by the new UI yet get sensible defaults.
     """
-    from modules.config import (
-        default_controlnet_image_count,
-        default_enhance_tabs,
-        default_max_lora_number,
-    )
     from modules.flags import disabled
+
+    cfg = config.get_config()
 
     loras_input = body.get("loras", [])
     # Pad to default_max_lora_number slots: (enabled, filename, weight)
     lora_args = []
-    for i in range(default_max_lora_number):
+    for i in range(cfg.default_max_lora_number):
         if i < len(loras_input):
             entry = loras_input[i]
             lora_args.extend([True, entry.get("filename", "None"), float(entry.get("weight", 1.0))])
@@ -190,12 +189,12 @@ def _build_generate_args(body: dict) -> list:
 
     # ControlNet image slots (all empty for now)
     cn_args = []
-    for _ in range(default_controlnet_image_count):
+    for _ in range(cfg.default_controlnet_image_count):
         cn_args.extend([None, 0.5, 1.0, disabled])  # img, stop, weight, type
 
     # Enhance tabs (all disabled for now)
     enhance_args = []
-    for _ in range(default_enhance_tabs):
+    for _ in range(cfg.default_enhance_tabs):
         enhance_args.extend(
             [
                 False,  # enhance_enabled
@@ -222,17 +221,17 @@ def _build_generate_args(body: dict) -> list:
         body.get("prompt", ""),
         body.get("negative_prompt", ""),
         body.get("style_selections", []),
-        body.get("performance_selection", body.get("performance", config.default_performance)),
-        body.get("aspect_ratios_selection", config.default_aspect_ratio),
-        max(1, min(int(body.get("image_number", config.default_image_number)), config.default_max_image_number)),
+        body.get("performance_selection", body.get("performance", cfg.default_performance)),
+        body.get("aspect_ratios_selection", cfg.default_aspect_ratio),
+        max(1, min(int(body.get("image_number", cfg.default_image_number)), cfg.default_max_image_number)),
         body.get("output_format", "png"),
         int(body.get("seed", -1)),
         body.get("read_wildcards_in_order", False),
-        float(body.get("sharpness", config.default_sample_sharpness)),
-        float(body.get("cfg_scale", config.default_cfg_scale)),
-        body.get("base_model_name", config.default_base_model_name),
-        body.get("refiner_model_name", config.default_refiner_model_name),
-        float(body.get("refiner_switch", config.default_refiner_switch)),
+        float(body.get("sharpness", cfg.default_sample_sharpness)),
+        float(body.get("cfg_scale", cfg.default_cfg_scale)),
+        body.get("base_model_name", cfg.default_base_model_name),
+        body.get("refiner_model_name", cfg.default_refiner_model_name),
+        float(body.get("refiner_switch", cfg.default_refiner_switch)),
         *lora_args,
         body.get("input_image_checkbox", False),
         body.get("current_tab", "uov"),
@@ -252,8 +251,8 @@ def _build_generate_args(body: dict) -> list:
         float(body.get("adm_scaler_end", 0.3)),
         float(body.get("adaptive_cfg", 7.0)),
         int(body.get("clip_skip", 2)),
-        body.get("sampler_name", config.default_sampler),
-        body.get("scheduler_name", config.default_scheduler),
+        body.get("sampler_name", cfg.default_sampler),
+        body.get("scheduler_name", cfg.default_scheduler),
         body.get("vae_name", "Default (model)"),
         int(body.get("overwrite_step", -1)),
         int(body.get("overwrite_switch", -1)),
@@ -513,9 +512,9 @@ async def ws_generation(websocket: WebSocket):
 # Generated image file serving
 # ---------------------------------------------------------------------------
 
-if os.path.isdir(config.path_outputs):
+if os.path.isdir(config.get_config().path_outputs):
     app.mount(
         "/outputs",
-        StaticFiles(directory=config.path_outputs),
+        StaticFiles(directory=config.get_config().path_outputs),
         name="outputs",
     )
