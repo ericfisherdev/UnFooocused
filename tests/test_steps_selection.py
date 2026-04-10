@@ -79,8 +79,6 @@ def _minimal_args_list(*, overwrite_step: int = -1) -> list:
         False,  # generate_image_grid
         "a beautiful sunset",  # prompt
         "",  # negative_prompt
-        ["Fooocus V2"],  # style_selections
-        "Speed",  # performance_selection
         "1024*1024",  # aspect_ratios_selection
         1,  # image_number (1 for faster tests)
         "png",  # output_format
@@ -190,14 +188,12 @@ class TestAppConfigDefaultSteps:
         cfg = get_config()
         assert hasattr(cfg, "default_steps"), "AppConfig must have a 'default_steps' field"
 
-    def test_default_steps_equals_performance_steps(self):
-        """When no override is in config.txt, default_steps should match the default performance mode."""
+    def test_default_steps_is_30(self):
+        """When no override is in config.txt, default_steps should be 30."""
         from modules.config import get_config
-        from modules.flags import Performance
 
         cfg = get_config()
-        expected = Performance(cfg.default_performance).steps()
-        assert cfg.default_steps == expected
+        assert cfg.default_steps == 30
 
     def test_config_txt_can_override_default_steps(self, tmp_path):
         """A user-provided default_steps in config.txt should override the computed default."""

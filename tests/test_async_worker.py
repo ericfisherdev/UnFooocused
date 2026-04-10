@@ -78,8 +78,6 @@ def _minimal_args_list() -> list:
         False,  # generate_image_grid
         "a beautiful sunset",  # prompt
         "",  # negative_prompt
-        ["Fooocus V2"],  # style_selections
-        "Speed",  # performance_selection
         "1024*1024",  # aspect_ratios_selection
         2,  # image_number
         "png",  # output_format
@@ -174,18 +172,11 @@ class TestAsyncTaskConstruction:
         task = AsyncTask(_minimal_args_list())
         assert task.negative_prompt == ""
 
-    def test_parses_performance_as_enum(self):
-        from modules.async_worker import AsyncTask
-        from modules.flags import Performance
-
-        task = AsyncTask(_minimal_args_list())
-        assert task.performance_selection == Performance.SPEED
-
-    def test_parses_steps_from_performance(self):
+    def test_defaults_to_30_steps(self):
         from modules.async_worker import AsyncTask
 
         task = AsyncTask(_minimal_args_list())
-        assert task.steps == 30  # Speed preset = 30 steps
+        assert task.effective_steps == 30
 
     def test_parses_image_number(self):
         from modules.async_worker import AsyncTask
@@ -446,12 +437,11 @@ class TestWorkerModelLogging:
         from modules.async_worker import AsyncTask, Worker
 
         args = _minimal_args_list()
-        # Enable the first LoRA slot (args index 15, 16, 17 after the first 15 args)
-        # The lora args start after refiner_switch (index 14)
-        # Index 15 = first lora enabled, 16 = filename, 17 = weight
-        args[15] = True
-        args[16] = "my_test_lora.safetensors"
-        args[17] = 0.8
+        # Enable the first LoRA slot — lora args start after refiner_switch (index 12)
+        # Index 13 = first lora enabled, 14 = filename, 15 = weight
+        args[13] = True
+        args[14] = "my_test_lora.safetensors"
+        args[15] = 0.8
 
         task = AsyncTask(args)
         worker = Worker(output_dir=str(tmp_path))
@@ -476,7 +466,7 @@ class TestWorkerCancellation:
 
         args = _minimal_args_list()
         # Request many images
-        args[6] = 10  # image_number
+        args[4] = 10  # image_number
 
         task = AsyncTask(args)
         worker = Worker(output_dir=str(tmp_path))
@@ -570,7 +560,7 @@ class TestResolutionParsing:
         from modules.async_worker import AsyncTask
 
         args = _minimal_args_list()
-        args[5] = "1152*896"  # aspect_ratios_selection
+        args[3] = "1152*896"  # aspect_ratios_selection
         task = AsyncTask(args)
         assert task.width == 1152
         assert task.height == 896

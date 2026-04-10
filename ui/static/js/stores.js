@@ -28,7 +28,6 @@ document.addEventListener('alpine:init', () => {
         defaultModel: '',
         defaultRefiner: '',
         defaultRefinerSwitch: 0.8,
-        defaultPerformance: 'Speed',
         defaultAspectRatio: '1152*896',
         availableAspectRatios: [],
         defaultImageNumber: 2,
@@ -36,7 +35,6 @@ document.addEventListener('alpine:init', () => {
         defaultOutputFormat: 'png',
         defaultPrompt: '',
         defaultPromptNegative: '',
-        defaultStyles: [],
         defaultCfgScale: 4,
         defaultSampleSharpness: 2,
         defaultSampler: 'dpmpp_2m_sde_gpu',
@@ -54,7 +52,6 @@ document.addEventListener('alpine:init', () => {
                 this.defaultModel = data.default_model || '';
                 this.defaultRefiner = data.default_refiner || '';
                 this.defaultRefinerSwitch = data.default_refiner_switch ?? 0.8;
-                this.defaultPerformance = data.default_performance || 'Speed';
                 this.defaultAspectRatio = data.default_aspect_ratio || '1152*896';
                 this.availableAspectRatios = data.available_aspect_ratios || [];
                 this.defaultImageNumber = data.default_image_number ?? 2;
@@ -62,7 +59,6 @@ document.addEventListener('alpine:init', () => {
                 this.defaultOutputFormat = data.default_output_format || 'png';
                 this.defaultPrompt = data.default_prompt || '';
                 this.defaultPromptNegative = data.default_prompt_negative || '';
-                this.defaultStyles = data.default_styles || [];
                 this.defaultCfgScale = data.default_cfg_scale ?? 4;
                 this.defaultSampleSharpness = data.default_sample_sharpness ?? 2;
                 this.defaultSampler = data.default_sampler || 'dpmpp_2m_sde_gpu';
@@ -86,16 +82,14 @@ document.addEventListener('alpine:init', () => {
     Alpine.store('data', {
         loraList: [],
         modelList: [],
-        styleList: [],
         lastRefresh: null,
         _intervalId: null,
 
         async refresh() {
             try {
-                const [modelsResp, lorasResp, stylesResp] = await Promise.all([
+                const [modelsResp, lorasResp] = await Promise.all([
                     fetch('/api/models'),
                     fetch('/api/lora-library-data'),
-                    fetch('/api/styles'),
                 ]);
 
                 if (modelsResp.ok) {
@@ -104,10 +98,6 @@ document.addEventListener('alpine:init', () => {
                 }
                 if (lorasResp.ok) {
                     this.loraList = await lorasResp.json();
-                }
-                if (stylesResp.ok) {
-                    const styles = await stylesResp.json();
-                    this.styleList = styles.styles || [];
                 }
                 this.lastRefresh = Date.now();
             } catch (e) {
@@ -197,12 +187,10 @@ document.addEventListener('alpine:init', () => {
 
         // Quick-settings values synced from the quickSettings component
         // so the Generate button (outside its scope) can read them.
-        performance: 'Speed',
         aspectRatio: '',
         imageNumber: 2,
         outputFormat: 'png',
         seed: -1,
-        selectedStyles: [],
 
         reset() {
             this.isGenerating = false;

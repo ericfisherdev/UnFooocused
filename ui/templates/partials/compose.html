@@ -99,18 +99,6 @@
 <div class="compose__quick-settings" x-data="quickSettings()">
     <div class="quick-settings-grid">
         <div class="quick-settings__item">
-            <span class="text-label" id="quick-settings-performance-label">Performance</span>
-            <div class="quick-settings__radio-group" role="group" aria-labelledby="quick-settings-performance-label">
-                <template x-for="perf in ['Speed', 'Quality', 'Extreme Speed']" :key="perf">
-                    <button type="button" class="btn btn-secondary btn-sm"
-                            :class="{ 'btn-primary': performance === perf }"
-                            :aria-pressed="(performance === perf).toString()"
-                            @click="setPerformance(perf)"
-                            x-text="perf === 'Extreme Speed' ? 'Extreme' : perf"></button>
-                </template>
-            </div>
-        </div>
-        <div class="quick-settings__item">
             <label class="text-label" for="quick-settings-aspect-ratio">Aspect Ratio</label>
             <div class="select-wrapper">
                 <select id="quick-settings-aspect-ratio" class="select" x-model="aspectRatio">
@@ -157,33 +145,6 @@
                        @change="seed = parseInt($event.target.value) || 0"
                        aria-label="Seed value"
                        style="flex: 1;">
-            </div>
-        </div>
-        <div class="quick-settings__item" style="position: relative;">
-            <label class="text-label" for="quick-settings-styles-btn">Styles</label>
-            <button id="quick-settings-styles-btn" type="button" class="btn btn-secondary btn-sm"
-                    @click="stylesOpen = !stylesOpen"
-                    :aria-expanded="stylesOpen.toString()"
-                    aria-controls="styles-dropdown"
-                    style="width: 100%; justify-content: flex-start;">
-                <span x-text="selectedStyleCount > 0 ? selectedStyleCount + ' selected' : 'Browse styles...'"></span>
-            </button>
-            <div class="styles-dropdown" id="styles-dropdown" x-show="stylesOpen" x-cloak
-                 @click.outside="stylesOpen = false"
-                 @keydown.escape="stylesOpen = false">
-                <input type="search" class="input input-sm" placeholder="Search styles..."
-                       x-model="styleSearch" aria-label="Search styles"
-                       style="margin-bottom: var(--space-2);">
-                <div class="styles-dropdown__list">
-                    <template x-for="style in filteredStyles" :key="style">
-                        <label class="styles-dropdown__item">
-                            <input type="checkbox"
-                                   :checked="isStyleSelected(style)"
-                                   @change="toggleStyle(style)">
-                            <span class="text-body-sm" x-text="style"></span>
-                        </label>
-                    </template>
-                </div>
             </div>
         </div>
     </div>
