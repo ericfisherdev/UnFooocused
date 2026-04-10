@@ -559,3 +559,127 @@ class TestResolutionParsing:
         task = AsyncTask(args)
         assert task.width == 1152
         assert task.height == 896
+
+
+# ---------------------------------------------------------------------------
+# disable_seed_increment flag
+# ---------------------------------------------------------------------------
+
+
+@_requires_pil
+class TestDisableSeedIncrement:
+    """When disable_seed_increment is True, all images use the same seed."""
+
+    def test_same_seed_produces_identical_images(self, tmp_path):
+        from modules.async_worker import AsyncTask, Worker
+        from PIL import Image
+
+        task = AsyncTask(_minimal_args_list())
+        task.disable_seed_increment = True
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        paths = task.results
+        assert len(paths) == 2
+        img0 = Image.open(paths[0])
+        img1 = Image.open(paths[1])
+        # With same seed, stub images should be identical (same color)
+        assert list(img0.get_flattened_data()) == list(img1.get_flattened_data())
+
+    def test_different_seeds_by_default(self, tmp_path):
+        from modules.async_worker import AsyncTask, Worker
+        from PIL import Image
+
+        task = AsyncTask(_minimal_args_list())
+        assert task.disable_seed_increment is False
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        paths = task.results
+        assert len(paths) == 2
+        img0 = Image.open(paths[0])
+        img1 = Image.open(paths[1])
+        # With incrementing seeds, stub images should differ
+        assert list(img0.get_flattened_data()) != list(img1.get_flattened_data())
+
+
+# ---------------------------------------------------------------------------
+# disable_preview flag
+# ---------------------------------------------------------------------------
+
+
+@_requires_pil
+class TestDisablePreview:
+    """When disable_preview is True, no preview events are yielded."""
+
+    def test_no_preview_events_when_disabled(self, tmp_path):
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        task.disable_preview = True
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        preview_events = [y for y in task.yields if y[0] == "preview"]
+        assert len(preview_events) == 0
+
+    def test_finish_event_still_emitted_when_preview_disabled(self, tmp_path):
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        task.disable_preview = True
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        finish_events = [y for y in task.yields if y[0] == "finish"]
+        assert len(finish_events) == 1
+
+    def test_preview_events_present_when_not_disabled(self, tmp_path):
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        assert task.disable_preview is False
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        preview_events = [y for y in task.yields if y[0] == "preview"]
+        assert len(preview_events) > 0
+
+
+# ---------------------------------------------------------------------------
+# save_metadata_to_images flag
+# ---------------------------------------------------------------------------
+
+
+@_requires_pil
+class TestSaveMetadataToImages:
+    """When save_metadata_to_images is False, no metadata is embedded in images."""
+
+    def test_no_metadata_embedded_when_disabled(self, tmp_path):
+        from modules.async_worker import AsyncTask, Worker
+        from PIL import Image
+
+        task = AsyncTask(_minimal_args_list())
+        task.save_metadata_to_images = False
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        for path in task.results:
+            img = Image.open(path)
+            # PNG text chunks should not contain "parameters" key
+            assert "parameters" not in img.info
+
+    def test_metadata_embedded_when_enabled(self, tmp_path):
+        from modules.async_worker import AsyncTask, Worker
+        from PIL import Image
+
+        task = AsyncTask(_minimal_args_list())
+        assert task.save_metadata_to_images is True
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        for path in task.results:
+            img = Image.open(path)
+            # PNG text chunks should contain "parameters" key with the prompt
+            assert "parameters" in img.info
+            assert task.prompt in img.info["parameters"]
