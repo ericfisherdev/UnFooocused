@@ -113,11 +113,13 @@ class TestPostLoraRescan:
         if scanner.is_scanning:
             scanner.stop_scan()
 
-        data = client.post("/api/lora-library-rescan").json()
-        assert data["success"] is True
-
-        # Clean up: stop the background scan we just triggered
-        scanner.stop_scan()
+        try:
+            data = client.post("/api/lora-library-rescan").json()
+            assert data == {"success": True}
+        finally:
+            # Clean up: stop background scan even if assertion fails
+            if scanner.is_scanning:
+                scanner.stop_scan()
 
     def test_returns_success_false_when_already_scanning(self, client: TestClient):
         """When a scan is already in progress, a second request should fail."""
