@@ -131,7 +131,7 @@ Conflict resolution: performance wins over maintainability; Fluent Python idioms
 
 ## FastAPI
 
-- Use `Annotated[type, Depends(...)]` and `Annotated[type, Query(...)]` for dependency injection and query parameters — the legacy `param: type = Query(...)` style triggers SonarCloud S8410 and is deprecated in FastAPI docs.
+- Use `Annotated[type, Depends(...)]` and `Annotated[type, Query(...)]` for dependency injection and query parameters — this is the preferred style in FastAPI docs; the legacy `param: type = Query(...)` form triggers SonarCloud S8410.
 - Resolve file paths relative to the module (`Path(__file__).resolve().parents[N]`), not the process CWD. Servers started from a different directory will silently miss config files otherwise.
 - Guard `urlsplit().port` access with `try/except ValueError` when parsing client-controlled headers — malformed ports like `host:abc` raise `ValueError`.
 
