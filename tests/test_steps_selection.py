@@ -232,8 +232,9 @@ class TestGeneratePassesSteps:
         task = AsyncTask(args)
         assert task.overwrite_step == 50
 
-    def test_build_generate_args_defaults_overwrite_step_to_negative_one(self):
-        """When no 'steps' is provided, overwrite_step should remain -1 (no override)."""
+    def test_build_generate_args_defaults_overwrite_step_to_config_default(self):
+        """When no 'steps' is provided, overwrite_step falls back to cfg.default_steps."""
+        from modules.config import get_config
         from ui.app import _build_generate_args
 
         body = {"prompt": "test"}
@@ -242,7 +243,7 @@ class TestGeneratePassesSteps:
         from modules.async_worker import AsyncTask
 
         task = AsyncTask(args)
-        assert task.overwrite_step == -1
+        assert task.overwrite_step == get_config().default_steps
 
     def test_generate_endpoint_passes_steps_through(self, client: TestClient):
         """POST /api/generate with steps=50 should queue a task with overwrite_step=50."""
