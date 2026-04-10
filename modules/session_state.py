@@ -22,7 +22,7 @@ BaseModelFamily = NewType("BaseModelFamily", str)
 class LoraEntry(TypedDict):
     """A single LoRA adapter with its blending weight."""
 
-    filename: str
+    name: str
     weight: float
 
 
@@ -35,7 +35,7 @@ class SessionState(TypedDict, total=False):
 
     prompt: str
     negative_prompt: str
-    style_selections: list[str]
+    styles: list[str]
     base_model_name: str
     refiner_model_name: str
     vae_name: str
@@ -127,7 +127,11 @@ def load_state(base_model: BaseModelFamily) -> SessionState | None:
         row = cursor.fetchone()
         if row is None:
             return None
-        return cast("SessionState", json.loads(row[0]))
+        raw = json.loads(row[0])
+        if not isinstance(raw, dict):
+            logger.warning("Invalid session state payload type: %s", type(raw).__name__)
+            return None
+        return cast("SessionState", raw)
     except (sqlite3.Error, json.JSONDecodeError) as e:
         logger.warning(f"Failed to load session state: {e}")
         return None
