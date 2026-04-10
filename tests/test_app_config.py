@@ -5,6 +5,16 @@ import json
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_config_singleton():
+    """Reset the config singleton before and after each test."""
+    from modules.config import reset_config
+
+    reset_config()
+    yield
+    reset_config()
+
+
 class TestAppConfigConstruction:
     """AppConfig can be constructed from a config dict."""
 
