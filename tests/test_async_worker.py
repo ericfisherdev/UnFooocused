@@ -14,6 +14,15 @@ from unittest.mock import patch
 
 import pytest
 
+try:
+    import PIL  # noqa: F401
+
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
+
+_requires_pil = pytest.mark.skipif(not _HAS_PIL, reason="PIL/Pillow not installed")
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -274,6 +283,7 @@ class TestAsyncTaskConstruction:
 # ---------------------------------------------------------------------------
 
 
+@_requires_pil
 class TestWorkerProcessing:
     """The worker picks up queued tasks and processes them."""
 
@@ -307,8 +317,8 @@ class TestWorkerProcessing:
 
         preview_events = [y for y in task.yields if y[0] == "preview"]
         assert len(preview_events) > 0
-        flag, product = preview_events[0]
-        percentage, text, image = product
+        _flag, product = preview_events[0]
+        percentage, text, _image = product
         assert isinstance(percentage, int | float)
         assert isinstance(text, str)
 
@@ -365,6 +375,7 @@ class TestWorkerProcessing:
 # ---------------------------------------------------------------------------
 
 
+@_requires_pil
 class TestWorkerOutputSaving:
     """The worker saves images via modules.output functions."""
 
@@ -409,6 +420,7 @@ class TestWorkerOutputSaving:
 # ---------------------------------------------------------------------------
 
 
+@_requires_pil
 class TestWorkerModelLogging:
     """The worker logs model/LoRA names (stub behavior for now)."""
 
@@ -450,6 +462,7 @@ class TestWorkerModelLogging:
 # ---------------------------------------------------------------------------
 
 
+@_requires_pil
 class TestWorkerCancellation:
     """Setting task.last_stop cancels generation."""
 
@@ -481,6 +494,7 @@ class TestWorkerCancellation:
 # ---------------------------------------------------------------------------
 
 
+@_requires_pil
 class TestWorkerBrowserDisconnect:
     """Worker skips remaining images when browser disconnects."""
 
