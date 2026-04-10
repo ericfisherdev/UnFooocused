@@ -11,10 +11,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    import os
+from typing import Any
 
 from modules.flags import sdxl_aspect_ratios
 
@@ -70,7 +67,7 @@ _DEFAULTS: dict[str, Any] = {
 
 
 def load_config(
-    config_path: str | os.PathLike[str] = _DEFAULT_CONFIG_PATH,
+    config_path: str | Path = _DEFAULT_CONFIG_PATH,
 ) -> dict[str, Any]:
     """Load configuration from a JSON file, merged over defaults.
 
