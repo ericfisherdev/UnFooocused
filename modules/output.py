@@ -12,6 +12,7 @@ Domain concepts:
 from __future__ import annotations
 
 import datetime
+import html
 import json
 import logging
 import os
@@ -258,8 +259,9 @@ def _build_image_entry(
     ]
 
     for label, _key, value in metadata:
-        value_txt = str(value).replace("\n", " </br> ")
-        parts.append(f"<tr><td class='label'>{label}</td><td class='value'>{value_txt}</td></tr>\n")
+        escaped_label = html.escape(str(label))
+        value_txt = html.escape(str(value)).replace("\n", " </br> ")
+        parts.append(f"<tr><td class='label'>{escaped_label}</td><td class='value'>{value_txt}</td></tr>\n")
 
     parts.append("</table>")
 
