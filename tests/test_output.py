@@ -79,7 +79,7 @@ class TestGenerateTempFilename:
         with patch("modules.output.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = fixed_now
             _, filepath, _ = generate_temp_filename(folder=str(output_dir), extension="png")
-        assert "/2026-04-10/" in filepath
+        assert f"{os.sep}2026-04-10{os.sep}" in filepath
 
     def test_filename_matches_timestamp_random_pattern(self, output_dir: Path, fixed_now: datetime.datetime) -> None:
         with patch("modules.output.datetime") as mock_dt:
