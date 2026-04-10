@@ -8,100 +8,9 @@ Each test drives one behavior. Tests are ordered by TDD cycle:
 5. is_browser_connected() default timeout is 15 seconds
 """
 
+import pytest
+
 import modules.heartbeat as heartbeat_module
-
-
-class TestUpdateHeartbeat:
-    """Cycle 1: update_heartbeat() records the current time."""
-
-    def test_sets_last_heartbeat_to_current_time(self, monkeypatch):
-        fake_now = 1000.0
-        monkeypatch.setattr(heartbeat_module, "time", _FakeTimeModule(fake_now))
-
-        heartbeat_module.update_heartbeat()
-
-        assert heartbeat_module._last_heartbeat_time == fake_now
-
-
-class TestIsBrowserConnectedAfterHeartbeat:
-    """Cycle 2: is_browser_connected() returns True right after a heartbeat."""
-
-    def test_returns_true_immediately_after_heartbeat(self, monkeypatch):
-        fake_now = 1000.0
-        fake_time = _FakeTimeModule(fake_now)
-        monkeypatch.setattr(heartbeat_module, "time", fake_time)
-
-        heartbeat_module.update_heartbeat()
-        # Time has not advanced — should be connected
-        assert heartbeat_module.is_browser_connected() is True
-
-
-class TestIsBrowserConnectedTimeout:
-    """Cycle 3: is_browser_connected() returns False after timeout elapses."""
-
-    def test_returns_false_when_timeout_elapsed(self, monkeypatch):
-        fake_time = _FakeTimeModule(1000.0)
-        monkeypatch.setattr(heartbeat_module, "time", fake_time)
-
-        heartbeat_module.update_heartbeat()
-        # Advance time beyond the default 15-second timeout
-        fake_time.advance(16.0)
-
-        assert heartbeat_module.is_browser_connected() is False
-
-
-class TestIsBrowserConnectedCustomTimeout:
-    """Cycle 4: is_browser_connected() respects a custom timeout_seconds."""
-
-    def test_connected_within_custom_timeout(self, monkeypatch):
-        fake_time = _FakeTimeModule(1000.0)
-        monkeypatch.setattr(heartbeat_module, "time", fake_time)
-
-        heartbeat_module.update_heartbeat()
-        fake_time.advance(4.0)
-
-        assert heartbeat_module.is_browser_connected(timeout_seconds=5.0) is True
-
-    def test_disconnected_beyond_custom_timeout(self, monkeypatch):
-        fake_time = _FakeTimeModule(1000.0)
-        monkeypatch.setattr(heartbeat_module, "time", fake_time)
-
-        heartbeat_module.update_heartbeat()
-        fake_time.advance(6.0)
-
-        assert heartbeat_module.is_browser_connected(timeout_seconds=5.0) is False
-
-
-class TestIsBrowserConnectedDefaultTimeout:
-    """Cycle 5: The default timeout is exactly 15 seconds."""
-
-    def test_connected_at_14_seconds(self, monkeypatch):
-        fake_time = _FakeTimeModule(1000.0)
-        monkeypatch.setattr(heartbeat_module, "time", fake_time)
-
-        heartbeat_module.update_heartbeat()
-        fake_time.advance(14.0)
-
-        assert heartbeat_module.is_browser_connected() is True
-
-    def test_disconnected_at_16_seconds(self, monkeypatch):
-        fake_time = _FakeTimeModule(1000.0)
-        monkeypatch.setattr(heartbeat_module, "time", fake_time)
-
-        heartbeat_module.update_heartbeat()
-        fake_time.advance(16.0)
-
-        assert heartbeat_module.is_browser_connected() is False
-
-    def test_boundary_disconnected_at_exactly_15_seconds(self, monkeypatch):
-        """At exactly 15s the condition (elapsed < timeout) is False."""
-        fake_time = _FakeTimeModule(1000.0)
-        monkeypatch.setattr(heartbeat_module, "time", fake_time)
-
-        heartbeat_module.update_heartbeat()
-        fake_time.advance(15.0)
-
-        assert heartbeat_module.is_browser_connected() is False
 
 
 # ---------------------------------------------------------------------------
@@ -119,3 +28,79 @@ class _FakeTimeModule:
 
     def advance(self, seconds: float) -> None:
         self._now += seconds
+
+
+@pytest.fixture
+def fake_time(monkeypatch):
+    """Provide a deterministic time source and patch it into the heartbeat module."""
+    ft = _FakeTimeModule(1000.0)
+    monkeypatch.setattr(heartbeat_module, "time", ft)
+    return ft
+
+
+class TestUpdateHeartbeat:
+    """Cycle 1: update_heartbeat() records the current time."""
+
+    def test_sets_last_heartbeat_to_current_time(self, fake_time):
+        heartbeat_module.update_heartbeat()
+
+        assert heartbeat_module._last_heartbeat_time == pytest.approx(1000.0)
+
+
+class TestIsBrowserConnectedAfterHeartbeat:
+    """Cycle 2: is_browser_connected() returns True right after a heartbeat."""
+
+    def test_returns_true_immediately_after_heartbeat(self, fake_time):
+        heartbeat_module.update_heartbeat()
+        # Time has not advanced — should be connected
+        assert heartbeat_module.is_browser_connected() is True
+
+
+class TestIsBrowserConnectedTimeout:
+    """Cycle 3: is_browser_connected() returns False after timeout elapses."""
+
+    def test_returns_false_when_timeout_elapsed(self, fake_time):
+        heartbeat_module.update_heartbeat()
+        # Advance time beyond the default 15-second timeout
+        fake_time.advance(16.0)
+
+        assert heartbeat_module.is_browser_connected() is False
+
+
+class TestIsBrowserConnectedCustomTimeout:
+    """Cycle 4: is_browser_connected() respects a custom timeout_seconds."""
+
+    def test_connected_within_custom_timeout(self, fake_time):
+        heartbeat_module.update_heartbeat()
+        fake_time.advance(4.0)
+
+        assert heartbeat_module.is_browser_connected(timeout_seconds=5.0) is True
+
+    def test_disconnected_beyond_custom_timeout(self, fake_time):
+        heartbeat_module.update_heartbeat()
+        fake_time.advance(6.0)
+
+        assert heartbeat_module.is_browser_connected(timeout_seconds=5.0) is False
+
+
+class TestIsBrowserConnectedDefaultTimeout:
+    """Cycle 5: The default timeout is exactly 15 seconds."""
+
+    def test_connected_at_14_seconds(self, fake_time):
+        heartbeat_module.update_heartbeat()
+        fake_time.advance(14.0)
+
+        assert heartbeat_module.is_browser_connected() is True
+
+    def test_disconnected_at_16_seconds(self, fake_time):
+        heartbeat_module.update_heartbeat()
+        fake_time.advance(16.0)
+
+        assert heartbeat_module.is_browser_connected() is False
+
+    def test_boundary_disconnected_at_exactly_15_seconds(self, fake_time):
+        """At exactly 15s the condition (elapsed < timeout) is False."""
+        heartbeat_module.update_heartbeat()
+        fake_time.advance(15.0)
+
+        assert heartbeat_module.is_browser_connected() is False
