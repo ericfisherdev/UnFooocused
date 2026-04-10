@@ -124,15 +124,16 @@ class TestPostLoraRescan:
         import modules.lora_metadata as lora_metadata
 
         scanner = lora_metadata.get_scanner()
-        # Directly set the internal flag to simulate an in-progress scan.
-        # Starting a real scan races with completion (empty dirs finish instantly).
-        scanner._is_scanning = True
+        # Simulate in-progress scan while preserving prior state.
+        with scanner._lock:
+            previous_is_scanning = scanner._is_scanning
+            scanner._is_scanning = True
         try:
             data = client.post("/api/lora-library-rescan").json()
-            assert data["success"] is False
-            assert "error" in data
+            assert data == {"success": False, "error": "Scan already in progress"}
         finally:
-            scanner._is_scanning = False
+            with scanner._lock:
+                scanner._is_scanning = previous_is_scanning
 
 
 # ---------------------------------------------------------------------------
