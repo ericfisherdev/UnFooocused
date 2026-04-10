@@ -106,13 +106,16 @@ class TestNoTomliReferences:
     def test_no_version_check_for_tomllib(self) -> None:
         """No test file should contain sys.version_info checks for tomllib."""
         version_check = "sys.version" + "_info"
-        tomli_ref = "tom" + "li"
+        # Match "import tomli" (the compat shim) but not "import tomllib" (stdlib)
+        tomli_shim = "import tomli\n"
+        tomli_as = "tomli as tomllib"
         tests_dir = PROJECT_ROOT / "tests"
         for test_file in tests_dir.glob("*.py"):
             if test_file.name == Path(__file__).name:
                 continue
             content = test_file.read_text()
-            if version_check in content and tomli_ref in content:
+            has_shim = tomli_shim in content or tomli_as in content
+            if version_check in content and has_shim:
                 raise AssertionError(
                     f"{test_file.name} contains a sys.version_info check related to tomli. "
                     "With Python >=3.14, use 'import tomllib' directly."
