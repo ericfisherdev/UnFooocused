@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -150,6 +151,141 @@ def _discover_files(paths: list[str], extension: str = ".safetensors") -> list[s
             if entry.lower().endswith(extension):
                 found.add(entry)
     return sorted(found)
+
+
+# ---------------------------------------------------------------------------
+# AppConfig — frozen dataclass holding all configuration values
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AppConfig:
+    """Immutable configuration object for the UnFooocused application.
+
+    Constructed via ``AppConfig.from_dict()`` (from a ``load_config()`` result)
+    or directly in tests.  Fields mirror the module-level globals that existed
+    previously, so the migration can proceed incrementally.
+    """
+
+    # Generation defaults
+    default_base_model_name: str
+    default_refiner_model_name: str
+    default_refiner_switch: float
+    default_performance: str
+    default_aspect_ratio: str
+    available_aspect_ratios: list[str]
+    default_image_number: int
+    default_max_image_number: int
+    default_output_format: str
+    default_prompt: str
+    default_prompt_negative: str
+    default_styles: list[str]
+    default_cfg_scale: float
+    default_sample_sharpness: float
+    default_sampler: str
+    default_scheduler: str
+    default_loras: list
+    default_loras_min_weight: float
+    default_loras_max_weight: float
+    default_max_lora_number: int
+    default_controlnet_image_count: int
+    default_enhance_tabs: int
+
+    # Paths
+    paths_checkpoints: list[str]
+    paths_loras: list[str]
+    path_embeddings: str
+    path_outputs: str
+
+    # Discovered model files
+    model_filenames: list[str]
+    lora_filenames: list[str]
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> AppConfig:
+        """Create an ``AppConfig`` from a ``load_config()`` result dict.
+
+        Runs file discovery for model and LoRA filenames using the
+        checkpoint/LoRA paths found in *raw*.
+        """
+        paths_checkpoints: list[str] = raw["paths_checkpoints"]
+        paths_loras: list[str] = raw["paths_loras"]
+
+        return cls(
+            default_base_model_name=raw["default_model"],
+            default_refiner_model_name=raw["default_refiner"],
+            default_refiner_switch=float(raw["default_refiner_switch"]),
+            default_performance=raw["default_performance"],
+            default_aspect_ratio=raw["default_aspect_ratio"],
+            available_aspect_ratios=raw["available_aspect_ratios"],
+            default_image_number=int(raw["default_image_number"]),
+            default_max_image_number=int(raw["default_max_image_number"]),
+            default_output_format=raw["default_output_format"],
+            default_prompt=raw["default_prompt"],
+            default_prompt_negative=raw["default_prompt_negative"],
+            default_styles=raw["default_styles"],
+            default_cfg_scale=float(raw["default_cfg_scale"]),
+            default_sample_sharpness=float(raw["default_sample_sharpness"]),
+            default_sampler=raw["default_sampler"],
+            default_scheduler=raw["default_scheduler"],
+            default_loras=raw["default_loras"],
+            default_loras_min_weight=float(raw["default_loras_min_weight"]),
+            default_loras_max_weight=float(raw["default_loras_max_weight"]),
+            default_max_lora_number=int(raw["default_max_lora_number"]),
+            default_controlnet_image_count=int(raw["default_controlnet_image_count"]),
+            default_enhance_tabs=int(raw["default_enhance_tabs"]),
+            paths_checkpoints=paths_checkpoints,
+            paths_loras=paths_loras,
+            path_embeddings=raw["path_embeddings"],
+            path_outputs=raw["path_outputs"],
+            model_filenames=_discover_files(paths_checkpoints),
+            lora_filenames=_discover_files(paths_loras),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Singleton accessor — replaces module-level mutable globals
+# ---------------------------------------------------------------------------
+
+_app_config: AppConfig | None = None
+
+
+def get_config() -> AppConfig:
+    """Return the application configuration singleton.
+
+    Lazily initializes on first call by loading from ``config.txt``.
+    """
+    global _app_config
+    if _app_config is None:
+        _app_config = AppConfig.from_dict(load_config())
+    return _app_config
+
+
+def set_config(config: AppConfig) -> None:
+    """Override the singleton with *config* (for testing)."""
+    global _app_config
+    _app_config = config
+
+
+def reset_config() -> None:
+    """Clear the singleton so the next ``get_config()`` reinitializes."""
+    global _app_config
+    _app_config = None
+
+
+# ---------------------------------------------------------------------------
+# Pure refresh functions — return new lists, no global mutation
+# ---------------------------------------------------------------------------
+
+
+def refresh_model_filenames(paths: list[str]) -> list[str]:
+    """Re-scan *paths* and return discovered checkpoint filenames."""
+    return _discover_files(paths)
+
+
+def refresh_lora_filenames(paths: list[str]) -> list[str]:
+    """Re-scan *paths* and return discovered LoRA filenames."""
+    return _discover_files(paths)
 
 
 # ---------------------------------------------------------------------------
