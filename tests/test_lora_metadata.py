@@ -16,6 +16,7 @@ import pytest
 from modules.lora_metadata import (
     LoraMetadataScanner,
     _deduplicate_ordered,
+    _extract_base_model,
     _extract_characters,
     _extract_description,
     _extract_numeric_field,
@@ -27,8 +28,12 @@ from modules.lora_metadata import (
     _parse_dataset_dirs,
     _parse_tag_frequency,
     extract_metadata,
+    get_all_library_data,
+    get_distinct_base_models,
     get_metadata_summary,
+    get_trigger_words_for_filename,
     is_valid_lora_file,
+    search_library,
 )
 
 
@@ -813,3 +818,489 @@ class TestLoraMetadataScanner:
         assert len(index) == 1
         meta = next(iter(index.values()))
         assert meta["relative_path"] == os.path.join("characters", "deep.safetensors")
+
+
+# ---------------------------------------------------------------------------
+# Helper: build a scanner with a pre-populated index for library function tests
+# ---------------------------------------------------------------------------
+def _make_populated_scanner() -> LoraMetadataScanner:
+    """Create a scanner with a representative index for library function tests.
+
+    The global library functions (get_all_library_data, etc.) delegate to
+    get_scanner(), so tests must patch that to inject this scanner.
+    """
+    scanner = LoraMetadataScanner(lora_paths=[])
+    scanner._metadata_index = {
+        "/loras/sdxl_char.safetensors": {
+            "filename": "sdxl_char.safetensors",
+            "file_path": "/loras/sdxl_char.safetensors",
+            "relative_path": "sdxl_char.safetensors",
+            "base_model": "SDXL 1.0",
+            "trigger_words": ["saber", "fate"],
+            "description": "Character LoRA for Saber",
+            "characters": ["Saber"],
+            "styles": ["Anime"],
+            "file_size": 100,
+            "training_epochs": None,
+            "training_steps": None,
+            "resolution": None,
+            "network_dim": None,
+            "network_alpha": None,
+            "raw_metadata": {},
+            "extraction_errors": [],
+        },
+        "/loras/pony/style.safetensors": {
+            "filename": "style.safetensors",
+            "file_path": "/loras/pony/style.safetensors",
+            "relative_path": "pony/style.safetensors",
+            "base_model": "Pony",
+            "trigger_words": ["watercolor", "painting"],
+            "description": "Style LoRA",
+            "characters": [],
+            "styles": ["Watercolor"],
+            "file_size": 200,
+            "training_epochs": None,
+            "training_steps": None,
+            "resolution": None,
+            "network_dim": None,
+            "network_alpha": None,
+            "raw_metadata": {},
+            "extraction_errors": [],
+        },
+        "/loras/no_model.safetensors": {
+            "filename": "no_model.safetensors",
+            "file_path": "/loras/no_model.safetensors",
+            "relative_path": "no_model.safetensors",
+            "base_model": None,
+            "trigger_words": [],
+            "description": None,
+            "characters": [],
+            "styles": [],
+            "file_size": 50,
+            "training_epochs": None,
+            "training_steps": None,
+            "resolution": None,
+            "network_dim": None,
+            "network_alpha": None,
+            "raw_metadata": {},
+            "extraction_errors": [],
+        },
+    }
+    scanner._scan_complete = True
+    return scanner
+
+
+@pytest.fixture()
+def _patch_scanner():
+    """Patch get_scanner to return a pre-populated scanner for library tests."""
+    scanner = _make_populated_scanner()
+    with patch("modules.lora_metadata.get_scanner", return_value=scanner):
+        yield scanner
+
+
+# ---------------------------------------------------------------------------
+# get_all_library_data
+# ---------------------------------------------------------------------------
+class TestGetAllLibraryData:
+    """get_all_library_data() returns sorted entries with fallback values."""
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_returns_all_entries(self):
+        result = get_all_library_data()
+        assert len(result) == 3
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_sorted_by_relative_path_case_insensitive(self):
+        result = get_all_library_data()
+        paths = [entry["relative_path"] for entry in result]
+        assert paths == sorted(paths, key=str.lower)
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_fallback_base_model_unknown(self):
+        result = get_all_library_data()
+        no_model_entry = next(e for e in result if e["filename"] == "no_model.safetensors")
+        assert no_model_entry["base_model"] == "Unknown"
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_fallback_description_empty_string(self):
+        result = get_all_library_data()
+        no_model_entry = next(e for e in result if e["filename"] == "no_model.safetensors")
+        assert no_model_entry["description"] == ""
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_fallback_trigger_words_empty_list(self):
+        result = get_all_library_data()
+        no_model_entry = next(e for e in result if e["filename"] == "no_model.safetensors")
+        assert no_model_entry["trigger_words"] == []
+
+    def test_empty_index_returns_empty_list(self):
+        scanner = LoraMetadataScanner(lora_paths=[])
+        with patch("modules.lora_metadata.get_scanner", return_value=scanner):
+            result = get_all_library_data()
+        assert result == []
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_fallback_relative_path_uses_filename(self):
+        """When relative_path is missing, filename is used as fallback."""
+        scanner = _make_populated_scanner()
+        # Remove relative_path from one entry
+        del scanner._metadata_index["/loras/sdxl_char.safetensors"]["relative_path"]
+        with patch("modules.lora_metadata.get_scanner", return_value=scanner):
+            result = get_all_library_data()
+        entry = next(e for e in result if e["filename"] == "sdxl_char.safetensors")
+        assert entry["relative_path"] == "sdxl_char.safetensors"
+
+
+# ---------------------------------------------------------------------------
+# get_distinct_base_models
+# ---------------------------------------------------------------------------
+class TestGetDistinctBaseModels:
+    """get_distinct_base_models() returns sorted unique models with Unknown last."""
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_returns_known_models_sorted(self):
+        result = get_distinct_base_models()
+        # Only non-None models are included; the None entry is excluded
+        assert "Pony" in result
+        assert "SDXL 1.0" in result
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_excludes_none_base_models(self):
+        result = get_distinct_base_models()
+        assert None not in result
+
+    def test_unknown_placed_at_end(self):
+        scanner = LoraMetadataScanner(lora_paths=[])
+        scanner._metadata_index = {
+            "/a.safetensors": {"base_model": "Unknown"},
+            "/b.safetensors": {"base_model": "SDXL 1.0"},
+            "/c.safetensors": {"base_model": "Pony"},
+        }
+        with patch("modules.lora_metadata.get_scanner", return_value=scanner):
+            result = get_distinct_base_models()
+        assert result[-1] == "Unknown"
+        assert result[0] != "Unknown"
+
+    def test_empty_index_returns_empty_list(self):
+        scanner = LoraMetadataScanner(lora_paths=[])
+        with patch("modules.lora_metadata.get_scanner", return_value=scanner):
+            result = get_distinct_base_models()
+        assert result == []
+
+    def test_models_are_alphabetically_sorted(self):
+        scanner = LoraMetadataScanner(lora_paths=[])
+        scanner._metadata_index = {
+            "/z.safetensors": {"base_model": "SD 1.5"},
+            "/a.safetensors": {"base_model": "Flux"},
+            "/b.safetensors": {"base_model": "Pony"},
+        }
+        with patch("modules.lora_metadata.get_scanner", return_value=scanner):
+            result = get_distinct_base_models()
+        assert result == ["Flux", "Pony", "SD 1.5"]
+
+
+# ---------------------------------------------------------------------------
+# get_trigger_words_for_filename
+# ---------------------------------------------------------------------------
+class TestGetTriggerWordsForFilename:
+    """get_trigger_words_for_filename() finds trigger words by relative path or basename."""
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_match_by_relative_path(self):
+        result = get_trigger_words_for_filename("pony/style.safetensors")
+        assert result == ["watercolor", "painting"]
+
+    def test_fallback_to_basename_match(self):
+        """When no relative_path matches, fall back to basename matching."""
+        scanner = LoraMetadataScanner(lora_paths=[])
+        scanner._metadata_index = {
+            "/deep/path/special.safetensors": {
+                "filename": "special.safetensors",
+                "file_path": "/deep/path/special.safetensors",
+                "relative_path": "deep/path/special.safetensors",
+                "base_model": "SDXL 1.0",
+                "trigger_words": ["unique_trigger"],
+                "description": "",
+                "characters": [],
+                "styles": [],
+                "file_size": 100,
+                "training_epochs": None,
+                "training_steps": None,
+                "resolution": None,
+                "network_dim": None,
+                "network_alpha": None,
+                "raw_metadata": {},
+                "extraction_errors": [],
+            },
+        }
+        with patch("modules.lora_metadata.get_scanner", return_value=scanner):
+            # "special.safetensors" won't match relative_path "deep/path/special.safetensors"
+            # but will match the basename via get_metadata_by_filename
+            result = get_trigger_words_for_filename("special.safetensors")
+        assert result == ["unique_trigger"]
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_not_found_returns_empty_list(self):
+        result = get_trigger_words_for_filename("nonexistent.safetensors")
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# search_library
+# ---------------------------------------------------------------------------
+class TestSearchLibrary:
+    """search_library() filters by text query and/or base model."""
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_text_search_matches_description(self):
+        result = search_library(query="Character")
+        assert len(result) == 1
+        assert result[0]["filename"] == "sdxl_char.safetensors"
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_text_search_matches_trigger_word(self):
+        result = search_library(query="watercolor")
+        assert len(result) == 1
+        assert result[0]["filename"] == "style.safetensors"
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_base_model_filter(self):
+        result = search_library(base_model_filter="Pony")
+        assert len(result) == 1
+        assert result[0]["filename"] == "style.safetensors"
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_combined_query_and_filter(self):
+        result = search_library(query="saber", base_model_filter="SDXL 1.0")
+        assert len(result) == 1
+        assert result[0]["filename"] == "sdxl_char.safetensors"
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_empty_query_returns_all(self):
+        result = search_library(query="", base_model_filter="")
+        assert len(result) == 3
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_no_match_returns_empty(self):
+        result = search_library(query="zzzzz_nonexistent")
+        assert result == []
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_base_model_filter_with_unknown_fallback(self):
+        """Entries with None base_model get 'Unknown' fallback in get_all_library_data."""
+        result = search_library(base_model_filter="Unknown")
+        assert len(result) == 1
+        assert result[0]["filename"] == "no_model.safetensors"
+
+    @pytest.mark.usefixtures("_patch_scanner")
+    def test_text_search_is_case_insensitive(self):
+        result = search_library(query="SABER")
+        assert len(result) >= 1
+
+
+# ---------------------------------------------------------------------------
+# _run_scan edge cases — error handling, progress, and stop-requested
+# ---------------------------------------------------------------------------
+class TestRunScanEdgeCases:
+    """_run_scan() handles extraction failures, progress logging, and stop requests."""
+
+    def test_extraction_failure_increments_files_failed(self, tmp_path):
+        """Files that raise during extract_metadata are counted as failures."""
+        lora_dir = tmp_path / "loras"
+        lora_dir.mkdir()
+        (lora_dir / "bad.safetensors").write_bytes(b"fake")
+
+        scanner = LoraMetadataScanner(lora_paths=[str(lora_dir)])
+
+        # Patch extract_metadata itself to raise — _safe_open errors are caught
+        # inside extract_metadata and don't propagate to _run_scan.
+        with patch("modules.lora_metadata.extract_metadata", side_effect=RuntimeError("unhandled")):
+            scanner.start_scan(blocking=True)
+
+        stats = scanner.scan_stats
+        assert stats["files_failed"] == 1
+        assert stats["files_scanned"] == 0
+
+    def test_stop_requested_halts_scan(self, tmp_path):
+        """Setting _stop_requested causes the scan to stop mid-iteration."""
+        lora_dir = tmp_path / "loras"
+        lora_dir.mkdir()
+        for i in range(5):
+            (lora_dir / f"model_{i}.safetensors").write_bytes(b"fake")
+
+        raw_metadata = {"ss_base_model_version": "sdxl"}
+        mock_handle = _make_safe_open_mock(metadata_return_value=raw_metadata)
+
+        scanner = LoraMetadataScanner(lora_paths=[str(lora_dir)])
+
+        call_count = 0
+
+        def stop_after_two(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                scanner._stop_requested = True
+            return mock_handle
+
+        with patch("modules.lora_metadata._safe_open", side_effect=stop_after_two):
+            scanner.start_scan(blocking=True)
+
+        # Should have scanned fewer than all 5 files
+        assert scanner.scan_stats["files_scanned"] < 5
+        assert scanner.scan_complete is True
+
+    def test_no_lora_paths_aborts_scan(self):
+        """When no paths are configured and config import fails, scan aborts."""
+        scanner = LoraMetadataScanner(lora_paths=[])
+        with patch(
+            "modules.lora_metadata.LoraMetadataScanner._load_lora_paths_from_config",
+            return_value=[],
+        ):
+            scanner.start_scan(blocking=True)
+        assert scanner.scan_complete is True
+        assert len(scanner.metadata_index) == 0
+
+    def test_load_lora_paths_from_config_import_error(self):
+        """_load_lora_paths_from_config returns [] on ImportError."""
+        scanner = LoraMetadataScanner(lora_paths=[])
+        with patch(
+            "modules.lora_metadata.LoraMetadataScanner._load_lora_paths_from_config",
+            return_value=[],
+        ):
+            scanner.start_scan(blocking=True)
+        assert scanner.scan_complete is True
+
+
+# ---------------------------------------------------------------------------
+# _extract_base_model edge cases
+# ---------------------------------------------------------------------------
+class TestExtractBaseModel:
+    """_extract_base_model() checks key mappings in order and handles empty values."""
+
+    def test_returns_none_when_no_keys_present(self):
+        assert _extract_base_model({}) is None
+
+    def test_skips_empty_value(self):
+        metadata = {"ss_base_model_version": "", "base_model": "sdxl"}
+        result = _extract_base_model(metadata)
+        assert result == "SDXL 1.0"
+
+    def test_returns_none_when_all_values_empty(self):
+        metadata = {"ss_base_model_version": ""}
+        assert _extract_base_model(metadata) is None
+
+
+# ---------------------------------------------------------------------------
+# _parse_bucket_resolutions edge cases
+# ---------------------------------------------------------------------------
+class TestParseBucketResolutionsEdgeCases:
+    """_parse_bucket_resolutions() handles non-dict and malformed bucket keys."""
+
+    def test_non_dict_value_returns_none(self):
+        assert _parse_bucket_resolutions(json.dumps([1, 2, 3])) is None
+
+    def test_invalid_bucket_key_skipped(self):
+        data = {"buckets": {"not_valid_json": {"count": 1}, "[512, 768]": {"count": 1}}}
+        result = _parse_bucket_resolutions(json.dumps(data))
+        assert result == "512x768"
+
+    def test_empty_resolutions_returns_none(self):
+        # Bucket key that parses but has wrong structure (not 2 elements)
+        data = {"buckets": {"[512]": {"count": 1}}}
+        result = _parse_bucket_resolutions(json.dumps(data))
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _extract_resolution edge case — empty value skipped
+# ---------------------------------------------------------------------------
+class TestExtractResolutionEdgeCases:
+    """_extract_resolution() skips empty/falsy values."""
+
+    def test_skips_empty_resolution_value(self):
+        metadata = {"ss_resolution": "", "resolution": "1024x1024"}
+        result = _extract_resolution(metadata)
+        assert result == "1024x1024"
+
+
+# ---------------------------------------------------------------------------
+# Scanner: refresh_file and _compute_relative_path
+# ---------------------------------------------------------------------------
+class TestScannerRefreshAndRelativePath:
+    """refresh_file() and _compute_relative_path() handle updates and fallbacks."""
+
+    def test_refresh_file_updates_index(self, tmp_path):
+        lora_dir = tmp_path / "loras"
+        lora_dir.mkdir()
+        lora_file = lora_dir / "test.safetensors"
+        lora_file.write_bytes(b"fake")
+
+        raw = {"ss_base_model_version": "sdxl"}
+        mock_handle = _make_safe_open_mock(metadata_return_value=raw)
+
+        scanner = LoraMetadataScanner(lora_paths=[str(lora_dir)])
+
+        with patch("modules.lora_metadata._safe_open", return_value=mock_handle):
+            result = scanner.refresh_file(str(lora_file))
+
+        assert result is not None
+        assert result["base_model"] == "SDXL 1.0"
+        assert str(lora_file) in scanner.metadata_index
+
+    def test_refresh_file_returns_none_on_failure(self, tmp_path):
+        scanner = LoraMetadataScanner(lora_paths=[])
+
+        with patch("modules.lora_metadata.extract_metadata", side_effect=RuntimeError("fail")):
+            result = scanner.refresh_file("/nonexistent.safetensors")
+
+        assert result is None
+
+    def test_compute_relative_path_fallback_to_basename(self):
+        scanner = LoraMetadataScanner(lora_paths=["/some/path"])
+        result = scanner._compute_relative_path("/different/path/file.safetensors")
+        assert result == "file.safetensors"
+
+    def test_compute_relative_path_matches_lora_root(self, tmp_path):
+        lora_dir = tmp_path / "loras"
+        lora_dir.mkdir()
+        scanner = LoraMetadataScanner(lora_paths=[str(lora_dir)])
+        result = scanner._compute_relative_path(str(lora_dir / "sub" / "file.safetensors"))
+        assert result == os.path.join("sub", "file.safetensors")
+
+
+# ---------------------------------------------------------------------------
+# _discover_lora_files edge case — path is a file, not a directory
+# ---------------------------------------------------------------------------
+class TestDiscoverLoraFilesEdgeCases:
+    """_discover_lora_files() handles non-directory paths."""
+
+    def test_skips_path_that_is_a_file(self, tmp_path):
+        file_path = tmp_path / "not_a_dir.safetensors"
+        file_path.write_bytes(b"fake")
+
+        scanner = LoraMetadataScanner(lora_paths=[str(file_path)])
+        files = scanner._discover_lora_files()
+        assert files == []
+
+
+# ---------------------------------------------------------------------------
+# extract_metadata edge case — file_size OSError
+# ---------------------------------------------------------------------------
+class TestExtractMetadataEdgeCases:
+    """extract_metadata() handles file size errors gracefully."""
+
+    def test_file_size_os_error(self, tmp_path):
+        fake_file = tmp_path / "missing.safetensors"
+        # File doesn't exist, so getsize will fail
+        # But _safe_open is mocked, so only file_size path errors
+        raw = {"ss_base_model_version": "sdxl"}
+        mock_handle = _make_safe_open_mock(metadata_return_value=raw)
+
+        with (
+            patch("modules.lora_metadata._safe_open", return_value=mock_handle),
+            patch("os.path.getsize", side_effect=OSError("no such file")),
+        ):
+            result = extract_metadata(str(fake_file))
+
+        assert result["file_size"] == 0
+        assert any("Failed to get file size" in e for e in result["extraction_errors"])
