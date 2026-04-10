@@ -317,22 +317,22 @@ async def generate_stop():
 
     The worker pops the active task from async_tasks before processing,
     so we must also check the module-level current_task reference.
-    Mirrors the stop logic used in the Gradio UI (webui.py stop_clicked).
+
+    Sets ``task.last_stop = "stop"`` which the worker checks between
+    images and steps. No ldm_patched dependency — UnFooocused is standalone.
     """
-    import ldm_patched.modules.model_management as model_management
-    from modules.async_worker import async_tasks, current_task
+    import modules.async_worker as async_worker
+    from modules.async_worker import async_tasks
 
     # Check the currently running task first (already popped from queue)
-    if current_task is not None and current_task.processing:
-        current_task.last_stop = "stop"
-        model_management.interrupt_current_processing()
+    if async_worker.current_task is not None and async_worker.current_task.processing:
+        async_worker.current_task.last_stop = "stop"
         return {"stopped": True}
 
     # Fall back to queued tasks that may have started processing
-    for task in async_tasks:
+    for task in list(async_tasks):
         if task.processing:
             task.last_stop = "stop"
-            model_management.interrupt_current_processing()
             return {"stopped": True}
 
     # Clear queued tasks so the next job doesn't start immediately
@@ -463,7 +463,8 @@ async def ws_generation(websocket: WebSocket):
         await websocket.send_json(message)
         update_heartbeat()
 
-    from modules.async_worker import async_tasks, current_task
+    import modules.async_worker as async_worker
+    from modules.async_worker import async_tasks
 
     try:
         yield_index = 0
@@ -474,7 +475,7 @@ async def ws_generation(websocket: WebSocket):
             if active_task is None or not active_task.processing:
                 if active_task is not None:
                     await _drain_remaining_yields(active_task, yield_index, _send_and_heartbeat)
-                active_task = _find_processing_task(async_tasks, current_task)
+                active_task = _find_processing_task(async_tasks, async_worker.current_task)
                 yield_index = 0
 
             # Refresh heartbeat so the backend knows a client is connected
