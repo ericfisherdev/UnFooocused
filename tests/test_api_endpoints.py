@@ -11,8 +11,8 @@ Endpoints tested here:
   - GET  /api/lora-trigger-words
   - GET  /api/styles
   - GET  /api/samplers
-  - POST /api/generate        (xfail — blocks on UNF-5)
-  - POST /api/generate/stop   (xfail — blocks on UNF-5)
+  - POST /api/generate
+  - POST /api/generate/stop
 
 Endpoints already covered elsewhere (DO NOT duplicate):
   - GET /api/config   (test_api_config.py)
@@ -257,9 +257,8 @@ class TestGetSamplers:
 
 
 class TestPostGenerate:
-    """POST /api/generate queues an image generation task (requires UNF-5)."""
+    """POST /api/generate queues an image generation task."""
 
-    @pytest.mark.xfail(reason="Requires UNF-5: standalone generation pipeline", strict=True)
     def test_returns_200_with_queued_response(self, client: TestClient):
         response = client.post("/api/generate", json={"prompt": "a test prompt"})
         assert response.status_code == 200
@@ -269,14 +268,13 @@ class TestPostGenerate:
 
 
 # ---------------------------------------------------------------------------
-# xfail: POST /api/generate/stop (blocks on UNF-5)
+# POST /api/generate/stop
 # ---------------------------------------------------------------------------
 
 
 class TestPostGenerateStop:
-    """POST /api/generate/stop stops the current generation (requires UNF-5)."""
+    """POST /api/generate/stop stops the current generation."""
 
-    @pytest.mark.xfail(reason="Requires UNF-5: standalone generation pipeline", strict=True)
     def test_returns_200_with_stopped_response(self, client: TestClient):
         response = client.post("/api/generate/stop")
         assert response.status_code == 200
