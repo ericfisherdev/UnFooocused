@@ -6,8 +6,6 @@ Cycles:
 3. update_model_filenames() / update_lora_filenames() refresh the lists
 """
 
-import pytest
-
 
 class TestDiscoverFiles:
     """Cycle 1: _discover_files() finds .safetensors in directories."""

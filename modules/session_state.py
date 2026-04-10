@@ -15,7 +15,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_db_path: str = './session_states.db'
+_db_path: str = "./session_states.db"
 _connection: sqlite3.Connection | None = None
 _lock: threading.RLock = threading.RLock()
 
@@ -32,13 +32,13 @@ def _get_connection() -> sqlite3.Connection:
         with _lock:
             if _connection is None:
                 _connection = sqlite3.connect(_db_path, check_same_thread=False)
-                _connection.execute('''
+                _connection.execute("""
                     CREATE TABLE IF NOT EXISTS session_states (
                         base_model TEXT PRIMARY KEY,
                         state_json TEXT NOT NULL,
                         updated_at REAL NOT NULL
                     )
-                ''')
+                """)
                 _connection.commit()
     return _connection
 
@@ -55,19 +55,19 @@ def save_state(base_model: str, state: dict[str, Any]) -> None:
         state: Dictionary of UI state to persist.
     """
     state_copy = dict(state)
-    if state_copy.get('seed') == -1:
-        state_copy.pop('seed', None)
+    if state_copy.get("seed") == -1:
+        state_copy.pop("seed", None)
 
     try:
         with _lock:
             conn = _get_connection()
             conn.execute(
-                '''INSERT INTO session_states (base_model, state_json, updated_at)
+                """INSERT INTO session_states (base_model, state_json, updated_at)
                    VALUES (?, ?, ?)
                    ON CONFLICT(base_model) DO UPDATE SET
                        state_json = excluded.state_json,
-                       updated_at = excluded.updated_at''',
-                (base_model, json.dumps(state_copy), time.time())
+                       updated_at = excluded.updated_at""",
+                (base_model, json.dumps(state_copy), time.time()),
             )
             conn.commit()
         logger.debug(f"Session state saved for base model: {base_model}")
@@ -87,10 +87,7 @@ def load_state(base_model: str) -> dict[str, Any] | None:
     """
     try:
         conn = _get_connection()
-        cursor = conn.execute(
-            'SELECT state_json FROM session_states WHERE base_model = ?',
-            (base_model,)
-        )
+        cursor = conn.execute("SELECT state_json FROM session_states WHERE base_model = ?", (base_model,))
         row = cursor.fetchone()
         if row is None:
             return None

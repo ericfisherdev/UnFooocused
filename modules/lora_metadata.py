@@ -24,60 +24,60 @@ logger = logging.getLogger(__name__)
 
 # Common metadata key variations from different LoRA sources
 METADATA_KEY_MAPPINGS = {
-    'base_model': [
-        'ss_base_model_version',
-        'base_model',
-        'ss_sd_model_name',
-        'modelspec.architecture',
-        'sd_model_name',
+    "base_model": [
+        "ss_base_model_version",
+        "base_model",
+        "ss_sd_model_name",
+        "modelspec.architecture",
+        "sd_model_name",
     ],
-    'trigger_words': [
-        'ss_tag_frequency',
-        'trigger_words',
-        'activation_text',
-        'ss_dataset_dirs',
+    "trigger_words": [
+        "ss_tag_frequency",
+        "trigger_words",
+        "activation_text",
+        "ss_dataset_dirs",
     ],
-    'description': [
-        'ss_training_comment',
-        'description',
-        'modelspec.description',
-        'ss_output_name',
+    "description": [
+        "ss_training_comment",
+        "description",
+        "modelspec.description",
+        "ss_output_name",
     ],
-    'training_epochs': [
-        'ss_epoch',
-        'ss_num_epochs',
-        'epochs',
+    "training_epochs": [
+        "ss_epoch",
+        "ss_num_epochs",
+        "epochs",
     ],
-    'training_steps': [
-        'ss_steps',
-        'ss_max_train_steps',
-        'steps',
+    "training_steps": [
+        "ss_steps",
+        "ss_max_train_steps",
+        "steps",
     ],
-    'resolution': [
-        'ss_resolution',
-        'ss_bucket_info',
-        'resolution',
+    "resolution": [
+        "ss_resolution",
+        "ss_bucket_info",
+        "resolution",
     ],
-    'network_dim': [
-        'ss_network_dim',
-        'network_dim',
-        'lora_network_dim',
+    "network_dim": [
+        "ss_network_dim",
+        "network_dim",
+        "lora_network_dim",
     ],
-    'network_alpha': [
-        'ss_network_alpha',
-        'network_alpha',
-        'lora_network_alpha',
+    "network_alpha": [
+        "ss_network_alpha",
+        "network_alpha",
+        "lora_network_alpha",
     ],
 }
 
 # Base model name normalization patterns
 BASE_MODEL_PATTERNS = {
-    r'sd[-_]?1\.?5|stable[-_]?diffusion[-_]?1\.?5': 'SD 1.5',
-    r'sd[-_]?2\.?1|stable[-_]?diffusion[-_]?2\.?1': 'SD 2.1',
-    r'sdxl(?:[-_ ]?1\.?0)?|stable[-_]?diffusion[-_]?xl': 'SDXL 1.0',
-    r'pony|pdxl': 'Pony',
-    r'sd[-_]?3|stable[-_]?diffusion[-_]?3': 'SD 3',
-    r'flux': 'Flux',
+    r"sd[-_]?1\.?5|stable[-_]?diffusion[-_]?1\.?5": "SD 1.5",
+    r"sd[-_]?2\.?1|stable[-_]?diffusion[-_]?2\.?1": "SD 2.1",
+    r"sdxl(?:[-_ ]?1\.?0)?|stable[-_]?diffusion[-_]?xl": "SDXL 1.0",
+    r"pony|pdxl": "Pony",
+    r"sd[-_]?3|stable[-_]?diffusion[-_]?3": "SD 3",
+    r"flux": "Flux",
 }
 
 
@@ -109,28 +109,28 @@ def extract_metadata(file_path: str) -> dict[str, Any]:
         }
     """
     result = {
-        'filename': os.path.basename(file_path),
-        'file_path': file_path,
-        'file_size': 0,
-        'base_model': None,
-        'trigger_words': [],
-        'description': None,
-        'characters': [],
-        'styles': [],
-        'training_epochs': None,
-        'training_steps': None,
-        'resolution': None,
-        'network_dim': None,
-        'network_alpha': None,
-        'raw_metadata': {},
-        'extraction_errors': [],
+        "filename": os.path.basename(file_path),
+        "file_path": file_path,
+        "file_size": 0,
+        "base_model": None,
+        "trigger_words": [],
+        "description": None,
+        "characters": [],
+        "styles": [],
+        "training_epochs": None,
+        "training_steps": None,
+        "resolution": None,
+        "network_dim": None,
+        "network_alpha": None,
+        "raw_metadata": {},
+        "extraction_errors": [],
     }
 
     try:
         # Get file size
-        result['file_size'] = os.path.getsize(file_path)
+        result["file_size"] = os.path.getsize(file_path)
     except OSError as e:
-        result['extraction_errors'].append(f"Failed to get file size: {e}")
+        result["extraction_errors"].append(f"Failed to get file size: {e}")
 
     try:
         # Open safetensors file and extract metadata from header
@@ -138,50 +138,46 @@ def extract_metadata(file_path: str) -> dict[str, Any]:
             raw_metadata = f.metadata()
 
             if raw_metadata is None:
-                result['extraction_errors'].append("No metadata found in file")
+                result["extraction_errors"].append("No metadata found in file")
                 return result
 
-            result['raw_metadata'] = dict(raw_metadata)
+            result["raw_metadata"] = dict(raw_metadata)
 
             # Extract base model
-            result['base_model'] = _extract_base_model(raw_metadata)
+            result["base_model"] = _extract_base_model(raw_metadata)
 
             # Extract trigger words
-            result['trigger_words'] = _extract_trigger_words(raw_metadata)
+            result["trigger_words"] = _extract_trigger_words(raw_metadata)
 
             # Extract description
-            result['description'] = _extract_description(raw_metadata)
+            result["description"] = _extract_description(raw_metadata)
 
             # Extract training info
-            result['training_epochs'] = _extract_numeric_field(
-                raw_metadata, METADATA_KEY_MAPPINGS['training_epochs']
-            )
-            result['training_steps'] = _extract_numeric_field(
-                raw_metadata, METADATA_KEY_MAPPINGS['training_steps']
-            )
+            result["training_epochs"] = _extract_numeric_field(raw_metadata, METADATA_KEY_MAPPINGS["training_epochs"])
+            result["training_steps"] = _extract_numeric_field(raw_metadata, METADATA_KEY_MAPPINGS["training_steps"])
 
             # Extract network parameters
-            result['network_dim'] = _extract_numeric_field(
-                raw_metadata, METADATA_KEY_MAPPINGS['network_dim']
-            )
-            result['network_alpha'] = _extract_numeric_field(
-                raw_metadata, METADATA_KEY_MAPPINGS['network_alpha'], as_float=True
+            result["network_dim"] = _extract_numeric_field(raw_metadata, METADATA_KEY_MAPPINGS["network_dim"])
+            result["network_alpha"] = _extract_numeric_field(
+                raw_metadata, METADATA_KEY_MAPPINGS["network_alpha"], as_float=True
             )
 
             # Extract resolution
-            result['resolution'] = _extract_resolution(raw_metadata)
+            result["resolution"] = _extract_resolution(raw_metadata)
 
             # Parse characters and styles from description and trigger words
-            all_text = ' '.join([
-                result['description'] or '',
-                ' '.join(result['trigger_words']),
-            ])
-            result['characters'] = _extract_characters(all_text, raw_metadata)
-            result['styles'] = _extract_styles(all_text, raw_metadata)
+            all_text = " ".join(
+                [
+                    result["description"] or "",
+                    " ".join(result["trigger_words"]),
+                ]
+            )
+            result["characters"] = _extract_characters(all_text, raw_metadata)
+            result["styles"] = _extract_styles(all_text, raw_metadata)
 
     except Exception as e:
         error_msg = f"Failed to extract metadata: {type(e).__name__}: {e}"
-        result['extraction_errors'].append(error_msg)
+        result["extraction_errors"].append(error_msg)
         logger.warning(f"Error extracting metadata from {file_path}: {error_msg}")
 
     return result
@@ -189,7 +185,7 @@ def extract_metadata(file_path: str) -> dict[str, Any]:
 
 def _extract_base_model(metadata: dict) -> str | None:
     """Extract and normalize base model name from metadata."""
-    for key in METADATA_KEY_MAPPINGS['base_model']:
+    for key in METADATA_KEY_MAPPINGS["base_model"]:
         if key in metadata:
             value = metadata[key]
             if value:
@@ -232,9 +228,7 @@ def _parse_tag_frequency(value) -> list[str]:
         for dataset_tags in tag_freq.values():
             if isinstance(dataset_tags, dict):
                 sorted_tags = sorted(
-                    dataset_tags.items(),
-                    key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0,
-                    reverse=True
+                    dataset_tags.items(), key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0, reverse=True
                 )
                 words.extend([tag for tag, _ in sorted_tags[:20]])
         return words
@@ -251,10 +245,10 @@ def _parse_dataset_dirs(value) -> list[str]:
         # Directory names often contain trigger words
         # Format: "1_character_name" or "10_style_name"
         words = []
-        for dir_name in dirs.keys():
-            parts = dir_name.split('_', 1)
+        for dir_name in dirs:
+            parts = dir_name.split("_", 1)
             if len(parts) > 1:
-                words.append(parts[1].replace('_', ' '))
+                words.append(parts[1].replace("_", " "))
         return words
     except (ValueError, TypeError):
         return []
@@ -264,7 +258,7 @@ def _extract_trigger_words(metadata: dict) -> list[str]:
     """Extract trigger words from metadata."""
     trigger_words = []
 
-    for key in METADATA_KEY_MAPPINGS['trigger_words']:
+    for key in METADATA_KEY_MAPPINGS["trigger_words"]:
         if key not in metadata:
             continue
 
@@ -272,12 +266,12 @@ def _extract_trigger_words(metadata: dict) -> list[str]:
         if not value:
             continue
 
-        if key == 'ss_tag_frequency':
+        if key == "ss_tag_frequency":
             trigger_words.extend(_parse_tag_frequency(value))
-        elif key == 'ss_dataset_dirs':
+        elif key == "ss_dataset_dirs":
             trigger_words.extend(_parse_dataset_dirs(value))
         elif isinstance(value, str):
-            words = re.split(r'[,;\n]', value)
+            words = re.split(r"[,;\n]", value)
             trigger_words.extend([w.strip() for w in words if w.strip()])
         elif isinstance(value, list):
             trigger_words.extend([str(w).strip() for w in value if w])
@@ -287,18 +281,14 @@ def _extract_trigger_words(metadata: dict) -> list[str]:
 
 def _extract_description(metadata: dict) -> str | None:
     """Extract description from metadata."""
-    for key in METADATA_KEY_MAPPINGS['description']:
+    for key in METADATA_KEY_MAPPINGS["description"]:
         value = metadata.get(key)
         if value:
             return str(value).strip()
     return None
 
 
-def _extract_numeric_field(
-    metadata: dict,
-    keys: list[str],
-    as_float: bool = False
-) -> int | float | None:
+def _extract_numeric_field(metadata: dict, keys: list[str], as_float: bool = False) -> int | float | None:
     """Extract a numeric field from metadata."""
     for key in keys:
         if key in metadata:
@@ -318,20 +308,20 @@ def _parse_bucket_resolutions(value) -> str | None:
         bucket_info = json.loads(value) if isinstance(value, str) else value
         if not isinstance(bucket_info, dict):
             return None
-        buckets = bucket_info.get('buckets', {})
+        buckets = bucket_info.get("buckets", {})
         if not buckets:
             return None
         resolutions = []
-        for res_key in buckets.keys():
+        for res_key in buckets:
             # Format: "[512, 768]" or "(512, 768)"
             try:
-                res = json.loads(res_key.replace('(', '[').replace(')', ']'))
+                res = json.loads(res_key.replace("(", "[").replace(")", "]"))
                 if isinstance(res, list) and len(res) == 2:
                     resolutions.append(f"{res[0]}x{res[1]}")
             except (ValueError, TypeError):
                 continue
         if resolutions:
-            return ', '.join(sorted(set(resolutions)))
+            return ", ".join(sorted(set(resolutions)))
         return None
     except (ValueError, TypeError):
         return None
@@ -339,7 +329,7 @@ def _parse_bucket_resolutions(value) -> str | None:
 
 def _extract_resolution(metadata: dict) -> str | None:
     """Extract training resolution from metadata."""
-    for key in METADATA_KEY_MAPPINGS['resolution']:
+    for key in METADATA_KEY_MAPPINGS["resolution"]:
         if key not in metadata:
             continue
 
@@ -347,7 +337,7 @@ def _extract_resolution(metadata: dict) -> str | None:
         if not value:
             continue
 
-        if key == 'ss_bucket_info':
+        if key == "ss_bucket_info":
             result = _parse_bucket_resolutions(value)
             if result:
                 return result
@@ -366,20 +356,20 @@ def _extract_characters(text: str, metadata: dict) -> list[str]:
     characters = []
 
     # Check for character-related metadata keys
-    character_keys = ['ss_character', 'character', 'characters']
+    character_keys = ["ss_character", "character", "characters"]
     for key in character_keys:
         value = metadata.get(key)
         if value:
             if isinstance(value, str):
-                characters.extend([c.strip() for c in value.split(',') if c.strip()])
+                characters.extend([c.strip() for c in value.split(",") if c.strip()])
             elif isinstance(value, list):
                 characters.extend([str(c).strip() for c in value if c])
 
     # Look for character patterns in text
     # Common patterns: "character: Name", "for character Name", etc.
     patterns = [
-        r'character[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-        r'(?:^|\s)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:from|character)',
+        r"character[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+        r"(?:^|\s)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:from|character)",
     ]
 
     for pattern in patterns:
@@ -399,12 +389,33 @@ def _extract_styles(text: str, metadata: dict) -> list[str]:
 
     # Common style keywords to look for
     style_keywords = [
-        'anime', 'realistic', 'photorealistic', 'cartoon', 'manga',
-        'watercolor', 'oil painting', 'digital art', 'concept art',
-        'illustration', 'sketch', 'line art', 'cel shaded',
-        '3d render', 'pixel art', 'fantasy', 'sci-fi', 'cyberpunk',
-        'steampunk', 'art nouveau', 'art deco', 'impressionist',
-        'surreal', 'abstract', 'minimalist', 'vintage', 'retro',
+        "anime",
+        "realistic",
+        "photorealistic",
+        "cartoon",
+        "manga",
+        "watercolor",
+        "oil painting",
+        "digital art",
+        "concept art",
+        "illustration",
+        "sketch",
+        "line art",
+        "cel shaded",
+        "3d render",
+        "pixel art",
+        "fantasy",
+        "sci-fi",
+        "cyberpunk",
+        "steampunk",
+        "art nouveau",
+        "art deco",
+        "impressionist",
+        "surreal",
+        "abstract",
+        "minimalist",
+        "vintage",
+        "retro",
     ]
 
     text_lower = text.lower()
@@ -413,12 +424,12 @@ def _extract_styles(text: str, metadata: dict) -> list[str]:
             styles.append(keyword.title())
 
     # Check for style-related metadata keys
-    style_keys = ['ss_style', 'style', 'styles', 'art_style']
+    style_keys = ["ss_style", "style", "styles", "art_style"]
     for key in style_keys:
         value = metadata.get(key)
         if value:
             if isinstance(value, str):
-                styles.extend([s.strip() for s in value.split(',') if s.strip()])
+                styles.extend([s.strip() for s in value.split(",") if s.strip()])
             elif isinstance(value, list):
                 styles.extend([str(s).strip() for s in value if s])
 
@@ -437,47 +448,47 @@ def get_metadata_summary(metadata: dict) -> str:
     """
     lines = [f"LoRA: {metadata['filename']}"]
 
-    if metadata['base_model']:
+    if metadata["base_model"]:
         lines.append(f"  Base Model: {metadata['base_model']}")
     else:
         lines.append("  Base Model: Unknown")
 
-    if metadata['trigger_words']:
-        triggers = ', '.join(metadata['trigger_words'][:5])
-        if len(metadata['trigger_words']) > 5:
+    if metadata["trigger_words"]:
+        triggers = ", ".join(metadata["trigger_words"][:5])
+        if len(metadata["trigger_words"]) > 5:
             triggers += f" (+{len(metadata['trigger_words']) - 5} more)"
         lines.append(f"  Trigger Words: {triggers}")
     else:
         lines.append("  Trigger Words: No trigger words available")
 
-    if metadata['description']:
-        desc = metadata['description'][:100]
-        if len(metadata['description']) > 100:
+    if metadata["description"]:
+        desc = metadata["description"][:100]
+        if len(metadata["description"]) > 100:
             desc += "..."
         lines.append(f"  Description: {desc}")
     else:
         lines.append("  Description: No description")
 
-    if metadata['characters']:
+    if metadata["characters"]:
         lines.append(f"  Characters: {', '.join(metadata['characters'])}")
 
-    if metadata['styles']:
+    if metadata["styles"]:
         lines.append(f"  Styles: {', '.join(metadata['styles'])}")
 
     # File info
-    size_mb = metadata['file_size'] / (1024 * 1024)
+    size_mb = metadata["file_size"] / (1024 * 1024)
     lines.append(f"  File Size: {size_mb:.2f} MB")
 
     # Network info
-    if metadata['network_dim']:
+    if metadata["network_dim"]:
         lines.append(f"  Network Dim: {metadata['network_dim']}")
-    if metadata['network_alpha']:
+    if metadata["network_alpha"]:
         lines.append(f"  Network Alpha: {metadata['network_alpha']}")
 
-    if metadata['extraction_errors']:
+    if metadata["extraction_errors"]:
         lines.append(f"  Warnings: {len(metadata['extraction_errors'])} extraction issues")
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def is_valid_lora_file(file_path: str) -> bool:
@@ -490,7 +501,7 @@ def is_valid_lora_file(file_path: str) -> bool:
     Returns:
         True if the file appears to be a valid LoRA file
     """
-    if not file_path.lower().endswith('.safetensors'):
+    if not file_path.lower().endswith(".safetensors"):
         return False
 
     if not os.path.isfile(file_path):
@@ -501,12 +512,9 @@ def is_valid_lora_file(file_path: str) -> bool:
         with safe_open(file_path, framework="pt") as f:
             keys = list(f.keys())
             # LoRA files typically have keys with 'lora' in them
-            has_lora_keys = any('lora' in key.lower() for key in keys)
+            has_lora_keys = any("lora" in key.lower() for key in keys)
             # Also check for common LoRA patterns like 'down' and 'up' blocks
-            has_lora_structure = any(
-                'lora_down' in key.lower() or 'lora_up' in key.lower()
-                for key in keys
-            )
+            has_lora_structure = any("lora_down" in key.lower() or "lora_up" in key.lower() for key in keys)
             return has_lora_keys or has_lora_structure
     except (OSError, RuntimeError) as e:
         logger.debug(f"File validation failed for {file_path}: {e}")
@@ -572,12 +580,12 @@ class LoraMetadataScanner:
         """
         with self._lock:
             return {
-                'is_scanning': self._is_scanning,
-                'scan_complete': self._scan_complete,
-                'files_scanned': self._files_scanned,
-                'files_failed': self._files_failed,
-                'total_indexed': len(self._metadata_index),
-                'elapsed_time': time.time() - self._scan_start_time if self._scan_start_time else 0,
+                "is_scanning": self._is_scanning,
+                "scan_complete": self._scan_complete,
+                "files_scanned": self._files_scanned,
+                "files_failed": self._files_failed,
+                "total_indexed": len(self._metadata_index),
+                "elapsed_time": time.time() - self._scan_start_time if self._scan_start_time else 0,
             }
 
     def start_scan(self, blocking: bool = False) -> None:
@@ -604,11 +612,7 @@ class LoraMetadataScanner:
         if blocking:
             self._run_scan()
         else:
-            self._scan_thread = threading.Thread(
-                target=self._run_scan,
-                name="LoraMetadataScanner",
-                daemon=True
-            )
+            self._scan_thread = threading.Thread(target=self._run_scan, name="LoraMetadataScanner", daemon=True)
             self._scan_thread.start()
             logger.info("Started background LoRA metadata scan")
 
@@ -666,9 +670,8 @@ class LoraMetadataScanner:
         base_model_lower = base_model.lower()
         with self._lock:
             for metadata in self._metadata_index.values():
-                if metadata.get('base_model'):
-                    if base_model_lower in metadata['base_model'].lower():
-                        results.append(copy.deepcopy(metadata))
+                if metadata.get("base_model") and base_model_lower in metadata["base_model"].lower():
+                    results.append(copy.deepcopy(metadata))
         return results
 
     def search_by_trigger_word(self, trigger_word: str) -> list[dict[str, Any]]:
@@ -685,7 +688,7 @@ class LoraMetadataScanner:
         trigger_lower = trigger_word.lower()
         with self._lock:
             for metadata in self._metadata_index.values():
-                for word in metadata.get('trigger_words', []):
+                for word in metadata.get("trigger_words", []):
                     if trigger_lower in word.lower():
                         results.append(copy.deepcopy(metadata))
                         break
@@ -722,7 +725,7 @@ class LoraMetadataScanner:
 
                 try:
                     metadata = extract_metadata(file_path)
-                    metadata['relative_path'] = relative_path
+                    metadata["relative_path"] = relative_path
                     with self._lock:
                         self._metadata_index[file_path] = metadata
                         self._files_scanned += 1
@@ -731,8 +734,7 @@ class LoraMetadataScanner:
                     if (index + 1) % 10 == 0 or (index + 1) == total_files:
                         progress = ((index + 1) / total_files) * 100
                         logger.info(
-                            f"Scan progress: {index + 1}/{total_files} "
-                            f"({progress:.1f}%) - {metadata['filename']}"
+                            f"Scan progress: {index + 1}/{total_files} ({progress:.1f}%) - {metadata['filename']}"
                         )
 
                 except Exception as e:
@@ -792,7 +794,7 @@ class LoraMetadataScanner:
                 continue
 
             # Recursively find all .safetensors files
-            for file_path in path.rglob('*.safetensors'):
+            for file_path in path.rglob("*.safetensors"):
                 relative = str(file_path.relative_to(path))
                 files.append((str(file_path), relative))
 
@@ -810,7 +812,7 @@ class LoraMetadataScanner:
         """
         try:
             metadata = extract_metadata(file_path)
-            metadata['relative_path'] = self._compute_relative_path(file_path)
+            metadata["relative_path"] = self._compute_relative_path(file_path)
             with self._lock:
                 self._metadata_index[file_path] = metadata
             return metadata
@@ -906,18 +908,18 @@ def get_all_library_data() -> list[dict[str, Any]]:
     for metadata in index.values():
         # Apply fallback values for missing metadata
         processed = dict(metadata)
-        if not processed.get('base_model'):
-            processed['base_model'] = 'Unknown'
-        if not processed.get('trigger_words'):
-            processed['trigger_words'] = []
-        if not processed.get('description'):
-            processed['description'] = ''
-        if not processed.get('relative_path'):
-            processed['relative_path'] = processed.get('filename', '')
+        if not processed.get("base_model"):
+            processed["base_model"] = "Unknown"
+        if not processed.get("trigger_words"):
+            processed["trigger_words"] = []
+        if not processed.get("description"):
+            processed["description"] = ""
+        if not processed.get("relative_path"):
+            processed["relative_path"] = processed.get("filename", "")
 
         library_data.append(processed)
 
-    library_data.sort(key=lambda x: x.get('relative_path', '').lower())
+    library_data.sort(key=lambda x: x.get("relative_path", "").lower())
 
     return library_data
 
@@ -934,15 +936,15 @@ def get_distinct_base_models() -> list[str]:
 
     base_models = set()
     for metadata in index.values():
-        model = metadata.get('base_model')
+        model = metadata.get("base_model")
         if model:
             base_models.add(model)
 
     # Return sorted list with 'Unknown' at the end if present
     models = sorted(base_models)
-    if 'Unknown' in models:
-        models.remove('Unknown')
-        models.append('Unknown')
+    if "Unknown" in models:
+        models.remove("Unknown")
+        models.append("Unknown")
 
     return models
 
@@ -963,21 +965,18 @@ def get_trigger_words_for_filename(filename: str) -> list[str]:
     # First try matching by relative path (handles subdirectory LoRAs)
     index = scanner.metadata_index
     for metadata in index.values():
-        if metadata.get('relative_path') == filename:
-            return metadata.get('trigger_words', [])
+        if metadata.get("relative_path") == filename:
+            return metadata.get("trigger_words", [])
 
     # Fall back to basename matching
     results = scanner.get_metadata_by_filename(filename)
     if results:
-        return results[0].get('trigger_words', [])
+        return results[0].get("trigger_words", [])
 
     return []
 
 
-def search_library(
-    query: str = '',
-    base_model_filter: str = ''
-) -> list[dict[str, Any]]:
+def search_library(query: str = "", base_model_filter: str = "") -> list[dict[str, Any]]:
     """
     Search and filter the LoRA library.
 
@@ -995,22 +994,22 @@ def search_library(
 
     for metadata in library_data:
         # Apply base model filter
-        if base_model_filter and metadata.get('base_model') != base_model_filter:
+        if base_model_filter and metadata.get("base_model") != base_model_filter:
             continue
 
         # Apply text search
         if query_lower:
             # Build searchable text from all fields
             searchable_parts = [
-                metadata.get('filename', ''),
-                metadata.get('relative_path', ''),
-                metadata.get('base_model', ''),
-                metadata.get('description', ''),
-                ' '.join(metadata.get('trigger_words', [])),
-                ' '.join(metadata.get('characters', [])),
-                ' '.join(metadata.get('styles', [])),
+                metadata.get("filename", ""),
+                metadata.get("relative_path", ""),
+                metadata.get("base_model", ""),
+                metadata.get("description", ""),
+                " ".join(metadata.get("trigger_words", [])),
+                " ".join(metadata.get("characters", [])),
+                " ".join(metadata.get("styles", [])),
             ]
-            searchable_text = ' '.join(str(p) for p in searchable_parts).lower()
+            searchable_text = " ".join(str(p) for p in searchable_parts).lower()
 
             if query_lower not in searchable_text:
                 continue

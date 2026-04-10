@@ -63,15 +63,26 @@ class TestLoadConfigDefaults:
 
         result = load_config()
         expected_keys = [
-            "default_model", "default_refiner", "default_refiner_switch",
-            "default_performance", "default_aspect_ratio",
-            "available_aspect_ratios", "default_image_number",
-            "default_max_image_number", "default_output_format",
-            "default_prompt", "default_prompt_negative", "default_styles",
-            "default_cfg_scale", "default_sample_sharpness",
-            "default_sampler", "default_scheduler",
-            "default_loras", "default_loras_min_weight",
-            "default_loras_max_weight", "default_max_lora_number",
+            "default_model",
+            "default_refiner",
+            "default_refiner_switch",
+            "default_performance",
+            "default_aspect_ratio",
+            "available_aspect_ratios",
+            "default_image_number",
+            "default_max_image_number",
+            "default_output_format",
+            "default_prompt",
+            "default_prompt_negative",
+            "default_styles",
+            "default_cfg_scale",
+            "default_sample_sharpness",
+            "default_sampler",
+            "default_scheduler",
+            "default_loras",
+            "default_loras_min_weight",
+            "default_loras_max_weight",
+            "default_max_lora_number",
         ]
         missing = [k for k in expected_keys if k not in result]
         assert not missing, f"Missing keys: {missing}"
@@ -82,9 +93,13 @@ class TestLoadConfigFromFile:
 
     def test_reads_custom_model(self, tmp_path):
         config_file = tmp_path / "config.txt"
-        config_file.write_text(json.dumps({
-            "default_model": "my_custom_model.safetensors",
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_model": "my_custom_model.safetensors",
+                }
+            )
+        )
         from modules.config import load_config
 
         result = load_config(config_path=config_file)
@@ -92,9 +107,13 @@ class TestLoadConfigFromFile:
 
     def test_reads_custom_cfg_scale(self, tmp_path):
         config_file = tmp_path / "config.txt"
-        config_file.write_text(json.dumps({
-            "default_cfg_scale": 12.0,
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_cfg_scale": 12.0,
+                }
+            )
+        )
         from modules.config import load_config
 
         result = load_config(config_path=config_file)
@@ -102,10 +121,14 @@ class TestLoadConfigFromFile:
 
     def test_reads_custom_paths(self, tmp_path):
         config_file = tmp_path / "config.txt"
-        config_file.write_text(json.dumps({
-            "paths_checkpoints": ["/custom/models"],
-            "paths_loras": ["/custom/loras"],
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "paths_checkpoints": ["/custom/models"],
+                    "paths_loras": ["/custom/loras"],
+                }
+            )
+        )
         from modules.config import load_config
 
         result = load_config(config_path=config_file)
@@ -118,9 +141,13 @@ class TestLoadConfigPartial:
 
     def test_missing_keys_get_defaults(self, tmp_path):
         config_file = tmp_path / "config.txt"
-        config_file.write_text(json.dumps({
-            "default_model": "partial.safetensors",
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_model": "partial.safetensors",
+                }
+            )
+        )
         from modules.config import load_config
 
         result = load_config(config_path=config_file)
@@ -181,28 +208,40 @@ class TestLoadConfigValidation:
     """Cycle 6: load_config() validates critical override types."""
 
     def test_raises_on_null_paths_checkpoints(self, tmp_path):
-        (tmp_path / "config.txt").write_text(json.dumps({
-            "paths_checkpoints": None,
-        }))
+        (tmp_path / "config.txt").write_text(
+            json.dumps(
+                {
+                    "paths_checkpoints": None,
+                }
+            )
+        )
         from modules.config import load_config
 
         with pytest.raises(ValueError, match="paths_checkpoints"):
             load_config(config_path=tmp_path / "config.txt")
 
     def test_raises_on_null_paths_loras(self, tmp_path):
-        (tmp_path / "config.txt").write_text(json.dumps({
-            "paths_loras": None,
-        }))
+        (tmp_path / "config.txt").write_text(
+            json.dumps(
+                {
+                    "paths_loras": None,
+                }
+            )
+        )
         from modules.config import load_config
 
         with pytest.raises(ValueError, match="paths_loras"):
             load_config(config_path=tmp_path / "config.txt")
 
     def test_raises_on_inverted_lora_weight_range(self, tmp_path):
-        (tmp_path / "config.txt").write_text(json.dumps({
-            "default_loras_min_weight": 5.0,
-            "default_loras_max_weight": -5.0,
-        }))
+        (tmp_path / "config.txt").write_text(
+            json.dumps(
+                {
+                    "default_loras_min_weight": 5.0,
+                    "default_loras_max_weight": -5.0,
+                }
+            )
+        )
         from modules.config import load_config
 
         with pytest.raises(ValueError, match="loras_min_weight"):

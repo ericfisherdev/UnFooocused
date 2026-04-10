@@ -12,16 +12,14 @@ import logging
 import os
 from pathlib import Path
 from typing import Annotated
-
 from urllib.parse import urlsplit
 
+import modules.config as config
+import modules.lora_metadata as lora_metadata
 from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-
-import modules.config as config
-import modules.lora_metadata as lora_metadata
 from modules.heartbeat import update_heartbeat
 
 logger = logging.getLogger(__name__)
@@ -43,6 +41,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # Pages
 # ---------------------------------------------------------------------------
 
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(request, "base.html")
@@ -51,6 +50,7 @@ async def index(request: Request):
 # ---------------------------------------------------------------------------
 # LoRA Library APIs (migrated from Gradio routes in webui.py)
 # ---------------------------------------------------------------------------
+
 
 @app.post("/api/lora-library-rescan")
 async def lora_library_rescan():
@@ -94,6 +94,7 @@ async def lora_trigger_words(filename: Annotated[str, Query(description="LoRA fi
 # Heartbeat (migrated from Gradio route in webui.py)
 # ---------------------------------------------------------------------------
 
+
 @app.post("/api/heartbeat")
 async def heartbeat_ping():
     """Receive a heartbeat ping from the browser client."""
@@ -104,6 +105,7 @@ async def heartbeat_ping():
 # ---------------------------------------------------------------------------
 # Config & Model Data APIs
 # ---------------------------------------------------------------------------
+
 
 @app.get("/api/config")
 async def get_config():
@@ -145,6 +147,7 @@ async def get_models():
 async def get_styles():
     """Return available style names."""
     from modules.sdxl_styles import legal_style_names
+
     return {"styles": legal_style_names}
 
 
@@ -152,12 +155,14 @@ async def get_styles():
 async def get_samplers():
     """Return available sampler and scheduler names."""
     from modules.flags import sampler_list, scheduler_list
+
     return {"samplers": sampler_list, "schedulers": scheduler_list}
 
 
 # ---------------------------------------------------------------------------
 # Generation — POST /api/generate
 # ---------------------------------------------------------------------------
+
 
 def _build_generate_args(body: dict) -> list:
     """
@@ -168,8 +173,9 @@ def _build_generate_args(body: dict) -> list:
     Params not exposed by the new UI yet get sensible defaults.
     """
     from modules.config import (
-        default_max_lora_number, default_controlnet_image_count,
+        default_controlnet_image_count,
         default_enhance_tabs,
+        default_max_lora_number,
     )
     from modules.flags import disabled
 
@@ -191,24 +197,26 @@ def _build_generate_args(body: dict) -> list:
     # Enhance tabs (all disabled for now)
     enhance_args = []
     for _ in range(default_enhance_tabs):
-        enhance_args.extend([
-            False,   # enhance_enabled
-            '',      # enhance_mask_dino_prompt_text
-            '',      # enhance_prompt
-            '',      # enhance_negative_prompt
-            'u2net', # enhance_mask_model
-            'full',  # enhance_mask_cloth_category
-            'sam_vit_b_01ec64', # enhance_mask_sam_model
-            0.25,    # enhance_mask_text_threshold
-            0.3,     # enhance_mask_box_threshold
-            0,       # enhance_mask_sam_max_detections
-            False,   # enhance_inpaint_disable_initial_latent
-            'None',  # enhance_inpaint_engine
-            1.0,     # enhance_inpaint_strength
-            0.618,   # enhance_inpaint_respective_field
-            0,       # enhance_inpaint_erode_or_dilate
-            False,   # enhance_mask_invert
-        ])
+        enhance_args.extend(
+            [
+                False,  # enhance_enabled
+                "",  # enhance_mask_dino_prompt_text
+                "",  # enhance_prompt
+                "",  # enhance_negative_prompt
+                "u2net",  # enhance_mask_model
+                "full",  # enhance_mask_cloth_category
+                "sam_vit_b_01ec64",  # enhance_mask_sam_model
+                0.25,  # enhance_mask_text_threshold
+                0.3,  # enhance_mask_box_threshold
+                0,  # enhance_mask_sam_max_detections
+                False,  # enhance_inpaint_disable_initial_latent
+                "None",  # enhance_inpaint_engine
+                1.0,  # enhance_inpaint_strength
+                0.618,  # enhance_inpaint_respective_field
+                0,  # enhance_inpaint_erode_or_dilate
+                False,  # enhance_mask_invert
+            ]
+        )
 
     args = [
         body.get("generate_image_grid", False),
@@ -231,9 +239,9 @@ def _build_generate_args(body: dict) -> list:
         body.get("current_tab", "uov"),
         body.get("uov_method", disabled),
         None,  # uov_input_image
-        [],    # outpaint_selections
+        [],  # outpaint_selections
         None,  # inpaint_input_image (dict with image+mask)
-        "",    # inpaint_additional_prompt
+        "",  # inpaint_additional_prompt
         None,  # inpaint_mask_image_upload
         # Developer/debug settings
         body.get("disable_preview", False),
@@ -318,14 +326,14 @@ async def generate_stop():
 
     # Check the currently running task first (already popped from queue)
     if current_task is not None and current_task.processing:
-        current_task.last_stop = 'stop'
+        current_task.last_stop = "stop"
         model_management.interrupt_current_processing()
         return {"stopped": True}
 
     # Fall back to queued tasks that may have started processing
     for task in async_tasks:
         if task.processing:
-            task.last_stop = 'stop'
+            task.last_stop = "stop"
             model_management.interrupt_current_processing()
             return {"stopped": True}
 
@@ -339,14 +347,16 @@ async def generate_stop():
 # WebSocket — generation progress streaming
 # ---------------------------------------------------------------------------
 
+
 def _encode_preview_image(img) -> str | None:
     """Encode a preview image (numpy array or PIL Image) to base64 JPEG."""
     if img is None:
         return None
     try:
         import io
-        from PIL import Image
+
         import numpy as np
+        from PIL import Image
 
         if isinstance(img, np.ndarray):
             img = Image.fromarray(img)
@@ -374,16 +384,12 @@ def _build_yield_message(flag: str, product) -> dict | None:
     if flag == "results":
         return {
             "type": "results",
-            "images": [
-                str(p) if not isinstance(p, str) else p for p in product
-            ],
+            "images": [str(p) if not isinstance(p, str) else p for p in product],
         }
     if flag == "finish":
         return {
             "type": "finish",
-            "images": [
-                str(p) if not isinstance(p, str) else p for p in product
-            ],
+            "images": [str(p) if not isinstance(p, str) else p for p in product],
         }
     return None
 

@@ -105,15 +105,10 @@ def load_config(
             with config_path.open(encoding="utf-8") as fh:
                 user_config = json.load(fh)
         except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"config.txt contains invalid JSON: {exc}"
-            ) from exc
+            raise ValueError(f"config.txt contains invalid JSON: {exc}") from exc
 
         if not isinstance(user_config, dict):
-            raise ValueError(
-                "config.txt must contain a JSON object, "
-                f"got {type(user_config).__name__}"
-            )
+            raise ValueError(f"config.txt must contain a JSON object, got {type(user_config).__name__}")
 
         config.update(user_config)
 
@@ -124,22 +119,17 @@ def load_config(
 def _validate_config(config: dict[str, Any]) -> None:
     """Validate critical config values that would cause import-time crashes."""
     if not isinstance(config.get("paths_checkpoints"), list):
-        raise ValueError(
-            "config.txt: paths_checkpoints must be a list of paths"
-        )
+        raise ValueError("config.txt: paths_checkpoints must be a list of paths")
     if not isinstance(config.get("paths_loras"), list):
-        raise ValueError(
-            "config.txt: paths_loras must be a list of paths"
-        )
+        raise ValueError("config.txt: paths_loras must be a list of paths")
     if config["default_loras_min_weight"] >= config["default_loras_max_weight"]:
-        raise ValueError(
-            "config.txt: default_loras_min_weight must be < default_loras_max_weight"
-        )
+        raise ValueError("config.txt: default_loras_min_weight must be < default_loras_max_weight")
 
 
 # ---------------------------------------------------------------------------
 # File discovery
 # ---------------------------------------------------------------------------
+
 
 def _discover_files(paths: list[str], extension: str = ".safetensors") -> list[str]:
     """Scan directories for files with the given extension.
