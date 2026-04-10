@@ -32,6 +32,17 @@ from modules.lora_metadata import (
 )
 
 
+def _make_safe_open_mock(metadata_return_value=None, keys_return_value=None):
+    """Create a context-manager MagicMock that mimics _safe_open behavior."""
+    mock_handle = MagicMock()
+    mock_handle.metadata.return_value = metadata_return_value
+    if keys_return_value is not None:
+        mock_handle.keys.return_value = keys_return_value
+    mock_handle.__enter__ = MagicMock(return_value=mock_handle)
+    mock_handle.__exit__ = MagicMock(return_value=False)
+    return mock_handle
+
+
 # ---------------------------------------------------------------------------
 # _normalize_base_model
 # ---------------------------------------------------------------------------
@@ -540,10 +551,7 @@ class TestExtractMetadata:
             "ss_resolution": "1024x1024",
         }
 
-        mock_handle = MagicMock()
-        mock_handle.metadata.return_value = raw
-        mock_handle.__enter__ = MagicMock(return_value=mock_handle)
-        mock_handle.__exit__ = MagicMock(return_value=False)
+        mock_handle = _make_safe_open_mock(metadata_return_value=raw)
 
         with patch("modules.lora_metadata._safe_open", return_value=mock_handle):
             result = extract_metadata(str(fake_file))
@@ -561,10 +569,7 @@ class TestExtractMetadata:
         fake_file = tmp_path / "empty.safetensors"
         fake_file.write_bytes(b"fake")
 
-        mock_handle = MagicMock()
-        mock_handle.metadata.return_value = None
-        mock_handle.__enter__ = MagicMock(return_value=mock_handle)
-        mock_handle.__exit__ = MagicMock(return_value=False)
+        mock_handle = _make_safe_open_mock(metadata_return_value=None)
 
         with patch("modules.lora_metadata._safe_open", return_value=mock_handle):
             result = extract_metadata(str(fake_file))
@@ -600,10 +605,9 @@ class TestIsValidLoraFile:
         fake_file = tmp_path / "good.safetensors"
         fake_file.write_bytes(b"fake")
 
-        mock_handle = MagicMock()
-        mock_handle.keys.return_value = ["lora_unet_down.weight", "lora_unet_up.weight"]
-        mock_handle.__enter__ = MagicMock(return_value=mock_handle)
-        mock_handle.__exit__ = MagicMock(return_value=False)
+        mock_handle = _make_safe_open_mock(
+            keys_return_value=["lora_unet_down.weight", "lora_unet_up.weight"],
+        )
 
         with patch("modules.lora_metadata._safe_open", return_value=mock_handle):
             assert is_valid_lora_file(str(fake_file)) is True
@@ -612,10 +616,9 @@ class TestIsValidLoraFile:
         fake_file = tmp_path / "not_lora.safetensors"
         fake_file.write_bytes(b"fake")
 
-        mock_handle = MagicMock()
-        mock_handle.keys.return_value = ["model.weight", "encoder.bias"]
-        mock_handle.__enter__ = MagicMock(return_value=mock_handle)
-        mock_handle.__exit__ = MagicMock(return_value=False)
+        mock_handle = _make_safe_open_mock(
+            keys_return_value=["model.weight", "encoder.bias"],
+        )
 
         with patch("modules.lora_metadata._safe_open", return_value=mock_handle):
             assert is_valid_lora_file(str(fake_file)) is False
@@ -695,11 +698,7 @@ class TestLoraMetadataScanner:
         (lora_dir / "not_a_lora.txt").write_bytes(b"nope")
 
         raw_metadata = {"ss_base_model_version": "sdxl"}
-
-        mock_handle = MagicMock()
-        mock_handle.metadata.return_value = raw_metadata
-        mock_handle.__enter__ = MagicMock(return_value=mock_handle)
-        mock_handle.__exit__ = MagicMock(return_value=False)
+        mock_handle = _make_safe_open_mock(metadata_return_value=raw_metadata)
 
         scanner = LoraMetadataScanner(lora_paths=[str(lora_dir)])
 
@@ -804,10 +803,7 @@ class TestLoraMetadataScanner:
         (sub_dir / "deep.safetensors").write_bytes(b"fake")
 
         raw_metadata = {"ss_base_model_version": "pony"}
-        mock_handle = MagicMock()
-        mock_handle.metadata.return_value = raw_metadata
-        mock_handle.__enter__ = MagicMock(return_value=mock_handle)
-        mock_handle.__exit__ = MagicMock(return_value=False)
+        mock_handle = _make_safe_open_mock(metadata_return_value=raw_metadata)
 
         scanner = LoraMetadataScanner(lora_paths=[str(lora_dir)])
         with patch("modules.lora_metadata._safe_open", return_value=mock_handle):
