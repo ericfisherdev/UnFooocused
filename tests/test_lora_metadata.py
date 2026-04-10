@@ -1095,7 +1095,8 @@ class TestSearchLibrary:
     @pytest.mark.usefixtures("_patch_scanner")
     def test_text_search_is_case_insensitive(self):
         result = search_library(query="SABER")
-        assert len(result) >= 1
+        assert len(result) == 1
+        assert result[0]["filename"] == "sdxl_char.safetensors"
 
 
 # ---------------------------------------------------------------------------
@@ -1160,8 +1161,8 @@ class TestRunScanEdgeCases:
         assert scanner.scan_complete is True
         assert len(scanner.metadata_index) == 0
 
-    def test_load_lora_paths_from_config_import_error(self):
-        """_load_lora_paths_from_config returns [] on ImportError."""
+    def test_load_lora_paths_from_config_returns_empty_list(self):
+        """When config loader returns no paths, scan still completes."""
         scanner = LoraMetadataScanner(lora_paths=[])
         with patch(
             "modules.lora_metadata.LoraMetadataScanner._load_lora_paths_from_config",
