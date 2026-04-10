@@ -108,6 +108,8 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError("config.txt: paths_checkpoints must be a list of paths")
     if not isinstance(config.get("paths_loras"), list):
         raise ValueError("config.txt: paths_loras must be a list of paths")
+    if not isinstance(config.get("path_fast_checkpoints"), str):
+        raise ValueError("config.txt: path_fast_checkpoints must be a string path")
     if config["default_loras_min_weight"] >= config["default_loras_max_weight"]:
         raise ValueError("config.txt: default_loras_min_weight must be < default_loras_max_weight")
 
