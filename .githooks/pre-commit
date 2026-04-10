@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# pre-commit hook — delegates to the pre-commit framework.
+#
+# This wrapper lives in .githooks/ (tracked by git) so it survives
+# repo recreation. It replaces the auto-generated hook that
+# `pre-commit install` puts in .git/hooks/.
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ARGS=(hook-impl --config=.pre-commit-config.yaml --hook-type=pre-commit --hook-dir "$HERE" -- "$@")
+
+if command -v pre-commit > /dev/null; then
+    exec pre-commit "${ARGS[@]}"
+elif [ -x /usr/bin/python ] && /usr/bin/python -c "import pre_commit" 2>/dev/null; then
+    exec /usr/bin/python -mpre_commit "${ARGS[@]}"
+else
+    echo '`pre-commit` not found. Install it: pipx install pre-commit' 1>&2
+    exit 1
+fi

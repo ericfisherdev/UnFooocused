@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# post-checkout hook for UnFooocused worktree setup.
+#
+# Copies untracked dependency files into new worktrees so they're
+# ready to use immediately after `git worktree add`.
+#
+# Triggered by: git checkout (flag=$3: 1=branch, 0=file)
+#               git worktree add (flag=$3: 1)
+#
+# Arguments: $1=prev_ref, $2=new_ref, $3=branch_flag
+
+branch_flag="$3"
+
+# Only run on branch checkouts (includes worktree creation), not file checkouts.
+if [ "$branch_flag" != "1" ]; then
+    exit 0
+fi
+
+# Resolve the worktree we're running in.
+WORKTREE_DIR="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$WORKTREE_DIR" ]; then
+    exit 0
+fi
+
+# Locate the main worktree as the canonical source for untracked files.
+BARE_DIR="$(git rev-parse --git-common-dir 2>/dev/null)"
+MAIN_WORKTREE="$(dirname "$BARE_DIR")/main"
+
+# If we ARE main, nothing to copy from.
+if [ "$WORKTREE_DIR" = "$MAIN_WORKTREE" ]; then
+    exit 0
+fi
+
+# --- Shared virtual environment (symlink) ---
+# Use a single shared .venv to avoid duplicating ~500MB per worktree.
+SHARED_VENV="$(dirname "$BARE_DIR")/.shared-venv"
+
+if [ ! -d "$SHARED_VENV" ]; then
+    echo "[post-checkout] Creating shared venv at $SHARED_VENV ..."
+    python -m venv "$SHARED_VENV"
+    "$SHARED_VENV/bin/pip" install -q -e "$MAIN_WORKTREE[dev]" 2>/dev/null \
+        || "$SHARED_VENV/bin/pip" install -q -e "$WORKTREE_DIR[dev]" 2>/dev/null \
+        || echo "[post-checkout] WARNING: pip install failed — install deps manually"
+fi
+
+if [ ! -e "$WORKTREE_DIR/.venv" ]; then
+    ln -s "$SHARED_VENV" "$WORKTREE_DIR/.venv"
+    echo "[post-checkout] Symlinked .venv -> $SHARED_VENV"
+fi
+
+# --- config.txt ---
+if [ -f "$MAIN_WORKTREE/config.txt" ] && [ ! -f "$WORKTREE_DIR/config.txt" ]; then
+    cp "$MAIN_WORKTREE/config.txt" "$WORKTREE_DIR/config.txt"
+    echo "[post-checkout] Copied config.txt from main"
+fi
+
+# --- .env (if it exists in main) ---
+if [ -f "$MAIN_WORKTREE/.env" ] && [ ! -f "$WORKTREE_DIR/.env" ]; then
+    cp "$MAIN_WORKTREE/.env" "$WORKTREE_DIR/.env"
+    echo "[post-checkout] Copied .env from main"
+fi
+
+exit 0
