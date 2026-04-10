@@ -11,6 +11,8 @@ import asyncio
 import base64
 import logging
 import os
+import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 from urllib.parse import urlsplit
@@ -41,6 +43,38 @@ app.mount(
 )
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+# ---------------------------------------------------------------------------
+# Background worker thread
+# ---------------------------------------------------------------------------
+
+_worker_stop = threading.Event()
+
+
+def _worker_loop() -> None:
+    """Background thread that processes tasks from the async_tasks queue."""
+    from modules.async_worker import Worker, async_tasks
+
+    cfg = config.get_config()
+    worker = Worker(output_dir=cfg.path_outputs)
+
+    while not _worker_stop.is_set():
+        if async_tasks:
+            task = async_tasks.pop(0)
+            try:
+                worker.process_task(task)
+            except Exception:
+                logger.exception("Worker failed processing task")
+        else:
+            time.sleep(0.1)
+
+
+@app.on_event("startup")
+def _start_worker() -> None:
+    thread = threading.Thread(target=_worker_loop, daemon=True, name="generation-worker")
+    thread.start()
+    logger.info("Generation worker thread started")
 
 
 # ---------------------------------------------------------------------------

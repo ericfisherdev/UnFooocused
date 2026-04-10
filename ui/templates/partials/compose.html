@@ -208,11 +208,14 @@
              const prompt = document.getElementById('prompt-editor-positive')?.innerText || '';
              const negPrompt = document.getElementById('prompt-editor-negative')?.innerText || '';
 
+             const gen = $store.generation;
              const body = {
                  prompt: prompt,
                  negative_prompt: negPrompt,
-                 // Quick settings read from sibling component — broadcast via DOM query
-                 // The quickSettings component stores state that we read here
+                 aspect_ratios_selection: gen.aspectRatio,
+                 image_number: gen.imageNumber,
+                 output_format: gen.outputFormat,
+                 seed: gen.seed,
              };
 
              try {
