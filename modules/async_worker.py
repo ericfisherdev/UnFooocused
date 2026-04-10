@@ -14,6 +14,7 @@ Domain concepts:
 from __future__ import annotations
 
 import logging
+import os
 import random
 from typing import TYPE_CHECKING
 
@@ -278,6 +279,9 @@ class Worker:
     ) -> str:
         """Generate a single image with progress updates.
 
+        Yields step-level progress events, creates a stub image, and
+        saves it to the output directory.
+
         Args:
             task: The parent task (for yielding progress).
             image_index: Zero-based index of the current image.
@@ -286,21 +290,41 @@ class Worker:
         Returns:
             Absolute path to the saved image file.
         """
-        import os
+        self._yield_step_progress(task, image_index, steps)
+        image = _generate_stub_image(task.width, task.height, task.seed + image_index)
+        return self._save_generated_image(task, image)
 
-        from modules.output import generate_temp_filename, save_image
+    def _yield_step_progress(
+        self,
+        task: AsyncTask,
+        image_index: int,
+        steps: int,
+    ) -> None:
+        """Yield preview events for each diffusion step.
 
+        Appends ("preview", (percentage, text, None)) to task.yields
+        for each step, checking for cancellation between steps.
+        """
+        total_steps = task.image_number * steps
         for step in range(steps):
             if task.last_stop == "stop":
                 break
 
-            overall_progress = (image_index * steps + step + 1) / (task.image_number * steps)
-            percentage = int(overall_progress * 100)
+            completed = image_index * steps + step + 1
+            percentage = int(completed / total_steps * 100)
             text = f"Image {image_index + 1}/{task.image_number}, Step {step + 1}/{steps}"
-
             task.yields.append(("preview", (percentage, text, None)))
 
-        image = _generate_stub_image(task.width, task.height, task.seed + image_index)
+    def _save_generated_image(self, task: AsyncTask, image: Image) -> str:
+        """Save a generated image to the output directory.
+
+        Creates the date-based subdirectory if it doesn't exist, then
+        delegates to ``modules.output.save_image()``.
+
+        Returns:
+            Absolute path to the saved image file.
+        """
+        from modules.output import generate_temp_filename, save_image
 
         _date_string, filepath, _filename = generate_temp_filename(
             folder=self.output_dir,
