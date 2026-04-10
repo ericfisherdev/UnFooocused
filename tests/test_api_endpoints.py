@@ -10,7 +10,7 @@ Endpoints tested here:
   - GET  /api/lora-library-data
   - GET  /api/lora-trigger-words
   - GET  /api/styles          (xfail — blocks on UNF-8)
-  - GET  /api/samplers        (xfail — blocks on UNF-4)
+  - GET  /api/samplers
   - POST /api/generate        (xfail — blocks on UNF-5)
   - POST /api/generate/stop   (xfail — blocks on UNF-5)
 
@@ -209,17 +209,36 @@ class TestGetStyles:
 
 
 class TestGetSamplers:
-    """GET /api/samplers returns sampler and scheduler lists (requires UNF-4)."""
+    """GET /api/samplers returns sampler and scheduler lists from local flags module."""
 
-    @pytest.mark.xfail(reason="Requires UNF-4: standalone flags module", strict=True)
-    def test_returns_200_with_samplers_and_schedulers(self, client: TestClient):
+    def test_returns_200(self, client: TestClient):
         response = client.get("/api/samplers")
         assert response.status_code == 200
-        data = response.json()
+
+    def test_response_contains_samplers_and_schedulers(self, client: TestClient):
+        data = client.get("/api/samplers").json()
         assert "samplers" in data
         assert "schedulers" in data
+
+    def test_samplers_is_a_nonempty_list(self, client: TestClient):
+        data = client.get("/api/samplers").json()
         assert isinstance(data["samplers"], list)
+        assert len(data["samplers"]) > 0
+
+    def test_schedulers_is_a_nonempty_list(self, client: TestClient):
+        data = client.get("/api/samplers").json()
         assert isinstance(data["schedulers"], list)
+        assert len(data["schedulers"]) > 0
+
+    def test_samplers_contains_default_sampler(self, client: TestClient):
+        """The default sampler (dpmpp_2m_sde_gpu) must be in the list."""
+        data = client.get("/api/samplers").json()
+        assert "dpmpp_2m_sde_gpu" in data["samplers"]
+
+    def test_schedulers_contains_default_scheduler(self, client: TestClient):
+        """The default scheduler (karras) must be in the list."""
+        data = client.get("/api/samplers").json()
+        assert "karras" in data["schedulers"]
 
 
 # ---------------------------------------------------------------------------
