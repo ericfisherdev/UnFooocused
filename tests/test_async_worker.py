@@ -32,8 +32,12 @@ def _minimal_args_list() -> list:
     """Build a minimal args list matching _build_generate_args() output order.
 
     This mirrors the positional structure that AsyncTask.__init__ consumes
-    via reverse()/pop(). We only set fields the worker actually reads;
+    via reverse()/pop().  We only set fields the worker actually reads;
     the rest get safe defaults.
+
+    IMPORTANT: This list must stay in exact 1:1 correspondence with
+    ``ui/app.py::_build_generate_args()``.  If that function changes,
+    update this helper and re-run the test suite.
     """
     from modules.config import get_config
 
