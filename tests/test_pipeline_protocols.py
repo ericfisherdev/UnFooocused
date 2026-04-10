@@ -561,12 +561,8 @@ def _is_protocol(cls: type) -> bool:
 
 
 def _is_runtime_checkable(cls: type) -> bool:
-    """Check if cls is marked @runtime_checkable.
-
-    Python 3.12+ uses ``_is_runtime_checkable``.
-    Python 3.8-3.11 uses ``_is_runtime_protocol``.
-    """
-    return getattr(cls, "_is_runtime_checkable", False) or getattr(cls, "_is_runtime_protocol", False)
+    """Check if cls is marked @runtime_checkable."""
+    return getattr(cls, "_is_runtime_protocol", False)
 
 
 def _get_protocols_source() -> str:
