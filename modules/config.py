@@ -56,13 +56,14 @@ _DEFAULTS: dict[str, Any] = {
     "default_loras_max_weight": 2.0,
     "default_max_lora_number": 5,
     "default_controlnet_image_count": 4,
-    "default_steps": -1,  # -1 means "derive from performance mode"
+    "default_steps": 30,
     "default_enhance_tabs": 3,
     # Paths
     "paths_checkpoints": ["./models/checkpoints"],
     "paths_loras": ["./models/loras"],
     "path_embeddings": "./models/embeddings",
     "path_outputs": "./outputs",
+    "path_fast_checkpoints": "",
 }
 
 
@@ -181,6 +182,7 @@ class AppConfig:
     paths_loras: tuple[str, ...]
     path_embeddings: str
     path_outputs: str
+    path_fast_checkpoints: str
 
     # Discovered model files
     model_filenames: tuple[str, ...]
@@ -231,6 +233,7 @@ class AppConfig:
             paths_loras=tuple(paths_loras),
             path_embeddings=raw["path_embeddings"],
             path_outputs=raw["path_outputs"],
+            path_fast_checkpoints=raw.get("path_fast_checkpoints", ""),
             model_filenames=tuple(_discover_files(paths_checkpoints)),
             lora_filenames=tuple(_discover_files(paths_loras)),
         )

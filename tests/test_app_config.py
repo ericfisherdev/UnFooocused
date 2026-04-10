@@ -165,6 +165,7 @@ class TestAppConfigDirectConstruction:
             paths_loras=("./models/loras",),
             path_embeddings="./models/embeddings",
             path_outputs="./outputs",
+            path_fast_checkpoints="",
             model_filenames=(),
             lora_filenames=(),
         )
