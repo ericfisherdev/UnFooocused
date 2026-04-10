@@ -157,7 +157,7 @@ class TestApplyStyle:
         if not no_positive_styles:
             pytest.skip("No styles with empty positive prompt found")
         style_name = no_positive_styles[0]
-        positive, _negative, has_placeholder = apply_style(style_name, "test prompt")
+        _positive, _negative, has_placeholder = apply_style(style_name, "test prompt")
         assert has_placeholder is False
 
     def test_apply_style_raises_for_unknown_style(self):
