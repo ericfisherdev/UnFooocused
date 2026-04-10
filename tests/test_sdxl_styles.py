@@ -37,11 +37,13 @@ class TestStyleDefinitions:
             assert isinstance(positive, str), f"Style {name!r} positive prompt is not a string"
             assert isinstance(negative, str), f"Style {name!r} negative prompt is not a string"
 
-    def test_fooocus_v2_style_exists(self):
-        """Fooocus V2 is the default expansion style referenced in config."""
-        from modules.sdxl_styles import styles
+    def test_fooocus_v2_is_virtual_style(self):
+        """Fooocus V2 is a virtual expansion style — in legal_style_names but NOT in styles dict."""
+        from modules.sdxl_styles import FOOOCUS_EXPANSION, legal_style_names, styles
 
-        assert "Fooocus V2" in styles
+        assert FOOOCUS_EXPANSION == "Fooocus V2"
+        assert FOOOCUS_EXPANSION in legal_style_names
+        assert FOOOCUS_EXPANSION not in styles
 
     def test_fooocus_enhance_style_exists(self):
         """Fooocus Enhance is a default style in config.default_styles."""

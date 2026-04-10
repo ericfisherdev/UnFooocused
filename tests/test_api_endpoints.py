@@ -9,7 +9,7 @@ Endpoints tested here:
   - POST /api/lora-library-rescan
   - GET  /api/lora-library-data
   - GET  /api/lora-trigger-words
-  - GET  /api/styles          (xfail — blocks on UNF-8)
+  - GET  /api/styles
   - GET  /api/samplers
   - POST /api/generate        (xfail — blocks on UNF-5)
   - POST /api/generate/stop   (xfail — blocks on UNF-5)
@@ -187,20 +187,30 @@ class TestGetLoraTriggerWords:
 
 
 # ---------------------------------------------------------------------------
-# xfail: GET /api/styles (blocks on UNF-8)
+# GET /api/styles
 # ---------------------------------------------------------------------------
 
 
 class TestGetStyles:
-    """GET /api/styles returns available style names (requires UNF-8)."""
+    """GET /api/styles returns available style names."""
 
-    @pytest.mark.xfail(reason="Requires UNF-8: standalone styles module", strict=True)
     def test_returns_200_with_styles_list(self, client: TestClient):
         response = client.get("/api/styles")
         assert response.status_code == 200
         data = response.json()
         assert "styles" in data
         assert isinstance(data["styles"], list)
+
+    def test_styles_list_is_nonempty(self, client: TestClient):
+        data = client.get("/api/styles").json()
+        assert len(data["styles"]) > 0
+
+    def test_styles_contains_default_styles(self, client: TestClient):
+        """The default styles from config must be present in the API response."""
+        data = client.get("/api/styles").json()
+        style_names = data["styles"]
+        for expected in ["Fooocus V2", "Fooocus Enhance", "Fooocus Sharp"]:
+            assert expected in style_names, f"Default style {expected!r} missing from /api/styles"
 
 
 # ---------------------------------------------------------------------------
