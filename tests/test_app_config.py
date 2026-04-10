@@ -192,40 +192,14 @@ class TestGetConfig:
         assert cfg1 is not cfg2
 
     def test_set_config_overrides_singleton(self):
-        """set_config() allows tests to inject a custom AppConfig."""
-        from modules.config import AppConfig, get_config, reset_config, set_config
+        """set_config() allows tests to inject a custom AppConfig via dataclasses.replace."""
+        import dataclasses
+
+        from modules.config import get_config, reset_config, set_config
 
         try:
-            custom = AppConfig(
-                default_base_model_name="injected_model.safetensors",
-                default_refiner_model_name="None",
-                default_refiner_switch=0.5,
-                default_performance="Speed",
-                default_aspect_ratio="1024*1024",
-                available_aspect_ratios=["1024*1024"],
-                default_image_number=1,
-                default_max_image_number=32,
-                default_output_format="png",
-                default_prompt="",
-                default_prompt_negative="",
-                default_styles=[],
-                default_cfg_scale=4.0,
-                default_sample_sharpness=2.0,
-                default_sampler="dpmpp_2m_sde_gpu",
-                default_scheduler="karras",
-                default_loras=[],
-                default_loras_min_weight=-2.0,
-                default_loras_max_weight=2.0,
-                default_max_lora_number=5,
-                default_controlnet_image_count=4,
-                default_enhance_tabs=3,
-                paths_checkpoints=[],
-                paths_loras=[],
-                path_embeddings="./models/embeddings",
-                path_outputs="./outputs",
-                model_filenames=[],
-                lora_filenames=[],
-            )
+            base = get_config()
+            custom = dataclasses.replace(base, default_base_model_name="injected_model.safetensors")
             set_config(custom)
             assert get_config().default_base_model_name == "injected_model.safetensors"
         finally:
