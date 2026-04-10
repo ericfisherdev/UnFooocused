@@ -148,17 +148,20 @@ class TestApplyStyle:
         assert "{prompt}" not in combined
         assert has_placeholder is True
 
-    def test_style_without_positive_prompt_returns_user_prompt(self):
-        """Styles with empty positive prompt should still work (user prompt passed through)."""
+    def test_style_without_placeholder_signals_caller_to_handle_prompt(self):
+        """Styles without {prompt} return has_placeholder=False so the caller prepends the user prompt."""
         from modules.sdxl_styles import apply_style, styles
 
-        # Find a style with no positive prompt (empty string — no {prompt} placeholder)
-        no_positive_styles = [name for name, (p, _n) in styles.items() if not p]
-        if not no_positive_styles:
-            pytest.skip("No styles with empty positive prompt found")
-        style_name = no_positive_styles[0]
-        _positive, _negative, has_placeholder = apply_style(style_name, "test prompt")
+        # Find a style with no {prompt} placeholder in positive prompt
+        no_placeholder_styles = [name for name, (p, _n) in styles.items() if "{prompt}" not in p]
+        if not no_placeholder_styles:
+            pytest.skip("No styles without {prompt} placeholder found")
+        style_name = no_placeholder_styles[0]
+        positive, _negative, has_placeholder = apply_style(style_name, "test prompt")
         assert has_placeholder is False
+        # When no placeholder, the style's positive lines don't contain the user prompt —
+        # the caller (generation pipeline) is responsible for prepending it.
+        assert "test prompt" not in " ".join(positive)
 
     def test_apply_style_raises_for_unknown_style(self):
         from modules.sdxl_styles import apply_style
