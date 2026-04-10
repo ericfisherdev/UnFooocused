@@ -12,7 +12,6 @@ Tests are ordered by TDD cycle:
 6. load_state() returns None gracefully on corrupted JSON
 """
 
-import json
 import sqlite3
 
 import pytest
