@@ -11,9 +11,45 @@ import logging
 import sqlite3
 import threading
 import time
-from typing import Any
+from typing import NewType, TypedDict, cast
 
 logger = logging.getLogger(__name__)
+
+
+BaseModelFamily = NewType("BaseModelFamily", str)
+
+
+class LoraEntry(TypedDict):
+    """A single LoRA adapter with its blending weight."""
+
+    filename: str
+    weight: float
+
+
+class SessionState(TypedDict, total=False):
+    """Schema for persisted UI state per base model family.
+
+    All fields are optional (total=False) because callers may persist
+    a partial subset of settings — e.g. only prompt and cfg_scale.
+    """
+
+    prompt: str
+    negative_prompt: str
+    style_selections: list[str]
+    base_model_name: str
+    refiner_model_name: str
+    vae_name: str
+    loras: list[LoraEntry]
+    sampler: str
+    scheduler: str
+    steps: int
+    cfg_scale: float
+    performance: str
+    image_number: int
+    sharpness: float
+    seed: int
+    aspect_ratios_selection: str
+
 
 _db_path: str = "./session_states.db"
 _connection: sqlite3.Connection | None = None
@@ -43,7 +79,7 @@ def _get_connection() -> sqlite3.Connection:
     return _connection
 
 
-def save_state(base_model: str, state: dict[str, Any]) -> None:
+def save_state(base_model: BaseModelFamily, state: SessionState) -> None:
     """
     Save UI state for a base model family.
 
@@ -75,7 +111,7 @@ def save_state(base_model: str, state: dict[str, Any]) -> None:
         logger.warning(f"Failed to save session state: {e}")
 
 
-def load_state(base_model: str) -> dict[str, Any] | None:
+def load_state(base_model: BaseModelFamily) -> SessionState | None:
     """
     Load saved UI state for a base model family.
 
@@ -91,7 +127,7 @@ def load_state(base_model: str) -> dict[str, Any] | None:
         row = cursor.fetchone()
         if row is None:
             return None
-        return json.loads(row[0])
+        return cast("SessionState", json.loads(row[0]))
     except (sqlite3.Error, json.JSONDecodeError) as e:
         logger.warning(f"Failed to load session state: {e}")
         return None
