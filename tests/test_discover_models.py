@@ -122,31 +122,23 @@ class TestDiscoverFilesEmptyPaths:
             unreadable_dir.chmod(0o755)
 
 
-class TestUpdateFilenames:
-    """Cycle 3: update functions refresh the module-level lists."""
+class TestRefreshFilenames:
+    """Cycle 3: refresh functions return re-scanned file lists."""
 
-    def test_update_model_filenames_rescans(self, tmp_path, monkeypatch):
-        import modules.config as config
-
-        monkeypatch.setattr(config, "paths_checkpoints", [str(tmp_path)])
+    def test_refresh_model_filenames_rescans(self, tmp_path):
+        from modules.config import refresh_model_filenames
 
         # Initially empty
-        config.update_model_filenames()
-        assert config.model_filenames == []
+        assert refresh_model_filenames([str(tmp_path)]) == []
 
         # Add a file
         (tmp_path / "new_model.safetensors").write_bytes(b"\x00")
-        config.update_model_filenames()
-        assert "new_model.safetensors" in config.model_filenames
+        assert "new_model.safetensors" in refresh_model_filenames([str(tmp_path)])
 
-    def test_update_lora_filenames_rescans(self, tmp_path, monkeypatch):
-        import modules.config as config
+    def test_refresh_lora_filenames_rescans(self, tmp_path):
+        from modules.config import refresh_lora_filenames
 
-        monkeypatch.setattr(config, "paths_loras", [str(tmp_path)])
-
-        config.update_lora_filenames()
-        assert config.lora_filenames == []
+        assert refresh_lora_filenames([str(tmp_path)]) == []
 
         (tmp_path / "lora_v1.safetensors").write_bytes(b"\x00")
-        config.update_lora_filenames()
-        assert "lora_v1.safetensors" in config.lora_filenames
+        assert "lora_v1.safetensors" in refresh_lora_filenames([str(tmp_path)])
