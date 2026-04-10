@@ -14,29 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from modules.flags import sdxl_aspect_ratios
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[1] / "config.txt"
-
-# ---------------------------------------------------------------------------
-# SDXL standard aspect ratios
-# ---------------------------------------------------------------------------
-
-SDXL_ASPECT_RATIOS: list[str] = [
-    "704*1408",
-    "704*1344",
-    "768*1344",
-    "768*1280",
-    "832*1216",
-    "896*1152",
-    "1024*1024",
-    "1152*896",
-    "1216*832",
-    "1280*768",
-    "1344*768",
-    "1344*704",
-    "1408*704",
-]
 
 # ---------------------------------------------------------------------------
 # Default configuration values
@@ -48,7 +30,7 @@ _DEFAULTS: dict[str, Any] = {
     "default_refiner_switch": 0.5,
     "default_performance": "Speed",
     "default_aspect_ratio": "1152*896",
-    "available_aspect_ratios": SDXL_ASPECT_RATIOS,
+    "available_aspect_ratios": sdxl_aspect_ratios,
     "default_image_number": 1,
     "default_max_image_number": 32,
     "default_output_format": "png",
