@@ -172,13 +172,8 @@ class LdmSampler:
 
         sigma_min, sigma_max = _extract_sigma_range(sigmas)
 
-        self._brownian_tree_init(
-            initial_latent.get("samples", initial_latent) if isinstance(initial_latent, dict) else initial_latent,
-            sigma_min,
-            sigma_max,
-            seed=config.seed,
-            cpu=False,
-        )
+        latent_samples = _extract_latent_samples(initial_latent)
+        self._brownian_tree_init(latent_samples, sigma_min, sigma_max, seed=config.seed, cpu=False)
 
         bridged_callback = _bridge_callback(callback, config.steps) if callback is not None else None
 
@@ -211,6 +206,23 @@ class LdmSampler:
 # ---------------------------------------------------------------------------
 # Pure helper functions
 # ---------------------------------------------------------------------------
+
+
+def _extract_latent_samples(latent: LatentTensor) -> Any:
+    """Extract the raw samples tensor from a latent dict.
+
+    ldm_patched stores latents as ``{"samples": tensor, ...}``.
+    BrownianTreeNoiseSampler needs the raw tensor, not the dict wrapper.
+
+    Args:
+        latent: Latent tensor dict or raw tensor.
+
+    Returns:
+        The raw samples tensor.
+    """
+    if isinstance(latent, dict):
+        return latent.get("samples", latent)
+    return latent
 
 
 def _extract_sigma_range(sigmas: Any) -> tuple[float, float]:
