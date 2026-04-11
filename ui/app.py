@@ -57,9 +57,11 @@ _worker_lock = threading.Lock()
 def _worker_loop() -> None:
     """Background thread that processes tasks from the async_tasks queue."""
     from modules.async_worker import Worker, async_tasks
+    from modules.infrastructure.pipeline_factory import build_pipeline
 
     cfg = config.get_config()
-    worker = Worker(output_dir=cfg.path_outputs)
+    pipeline = build_pipeline()
+    worker = Worker(output_dir=cfg.path_outputs, pipeline=pipeline)
 
     while not _worker_stop.is_set():
         task = None
