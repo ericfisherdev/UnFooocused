@@ -17,6 +17,24 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _concatenate_conds(cond_list: list[Any]) -> Any:
+    """Concatenate conditioning tensors along dim=1.
+
+    Uses torch.cat when tensors are available (production),
+    falls back to returning the list as-is (unit tests with fakes).
+    """
+    if len(cond_list) == 1:
+        return cond_list[0]
+    try:
+        import torch
+
+        if isinstance(cond_list[0], torch.Tensor):
+            return torch.cat(cond_list, dim=1)
+    except ImportError:
+        pass
+    return cond_list
+
+
 class LdmTextEncoder:
     """Concrete TextEncoder adapter backed by ldm_patched CLIP.
 
@@ -34,6 +52,9 @@ class LdmTextEncoder:
     def __init__(self, *, clip: Any) -> None:
         self._clip = clip
         self._cache: dict[str, tuple[Any, Any]] = {}
+
+    def __repr__(self) -> str:
+        return f"LdmTextEncoder(has_clip={self._clip is not None}, cache_size={len(self._cache)})"
 
     def encode(self, texts: list[str], clip_skip: int) -> Any:
         """Encode text prompts into conditioning tensors.
@@ -66,7 +87,7 @@ class LdmTextEncoder:
             cond_list.append(cond)
             pooled_acc = pooled if i == 0 else pooled_acc + pooled
 
-        return [[cond_list if len(cond_list) > 1 else cond_list[0], {"pooled_output": pooled_acc}]]
+        return [[_concatenate_conds(cond_list), {"pooled_output": pooled_acc}]]
 
     def clear_cache(self) -> None:
         """Discard all cached conditioning results.
