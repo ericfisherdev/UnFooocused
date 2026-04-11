@@ -13,9 +13,9 @@ are permitted in this module.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 from modules.domain.exceptions import ModelNotFoundError
 from modules.flags import Performance
@@ -70,54 +70,66 @@ class PresetOverrides:
 
 
 # ---------------------------------------------------------------------------
-# Preset definitions — one per speed mode
+# Shared defaults for all speed presets — extracted to eliminate duplication.
+# Each speed mode overrides sampler, scheduler, steps, LoRA, and patch type.
 # ---------------------------------------------------------------------------
 
-_EXTREME_SPEED_OVERRIDES = PresetOverrides(
+_SPEED_PRESET_SHARED: dict[str, object] = {
+    "cfg_scale": 1.0,
+    "refiner_disabled": True,
+    "sharpness": 0.0,
+    "adaptive_cfg": 1.0,
+    "adm_scaler_positive": 1.0,
+    "adm_scaler_negative": 1.0,
+    "adm_scaler_end": 0.0,
+}
+
+
+def _speed_preset(
+    *,
+    sampler_name: str,
+    scheduler_name: str,
+    steps: int,
+    lora_filename: str,
+    lora_weight: float,
+    scheduler_patch_type: SchedulerPatchType,
+) -> PresetOverrides:
+    """Build a PresetOverrides with shared speed-preset defaults."""
+    return PresetOverrides(
+        sampler_name=sampler_name,
+        scheduler_name=scheduler_name,
+        steps=steps,
+        lora_filename=lora_filename,
+        lora_weight=lora_weight,
+        scheduler_patch_type=scheduler_patch_type,
+        **_SPEED_PRESET_SHARED,  # type: ignore[arg-type]
+    )
+
+
+_EXTREME_SPEED_OVERRIDES = _speed_preset(
     sampler_name="lcm",
     scheduler_name="lcm",
     steps=8,
-    cfg_scale=1.0,
     lora_filename="sdxl_lcm_lora.safetensors",
     lora_weight=1.0,
-    refiner_disabled=True,
-    sharpness=0.0,
-    adaptive_cfg=1.0,
-    adm_scaler_positive=1.0,
-    adm_scaler_negative=1.0,
-    adm_scaler_end=0.0,
     scheduler_patch_type=SchedulerPatchType.MODEL_SAMPLING_DISCRETE,
 )
 
-_LIGHTNING_OVERRIDES = PresetOverrides(
+_LIGHTNING_OVERRIDES = _speed_preset(
     sampler_name="euler",
     scheduler_name="sgm_uniform",
     steps=4,
-    cfg_scale=1.0,
     lora_filename="sdxl_lightning_4step_lora.safetensors",
     lora_weight=1.0,
-    refiner_disabled=True,
-    sharpness=0.0,
-    adaptive_cfg=1.0,
-    adm_scaler_positive=1.0,
-    adm_scaler_negative=1.0,
-    adm_scaler_end=0.0,
     scheduler_patch_type=SchedulerPatchType.MODEL_SAMPLING_DISCRETE,
 )
 
-_HYPER_SD_OVERRIDES = PresetOverrides(
+_HYPER_SD_OVERRIDES = _speed_preset(
     sampler_name="dpmpp_sde_gpu",
     scheduler_name="karras",
     steps=4,
-    cfg_scale=1.0,
     lora_filename="sdxl_hyper_sd_4step_lora.safetensors",
     lora_weight=0.8,
-    refiner_disabled=True,
-    sharpness=0.0,
-    adaptive_cfg=1.0,
-    adm_scaler_positive=1.0,
-    adm_scaler_negative=1.0,
-    adm_scaler_end=0.0,
     scheduler_patch_type=SchedulerPatchType.CONTINUOUS_EDM,
 )
 
@@ -160,8 +172,8 @@ def validate_preset_lora(preset: Performance, lora_directory: str) -> None:
     if overrides is None:
         return
 
-    lora_path = os.path.join(lora_directory, overrides.lora_filename)
-    if not os.path.isfile(lora_path):
+    lora_path = Path(lora_directory) / overrides.lora_filename
+    if not lora_path.is_file():
         raise ModelNotFoundError(
             f"Performance preset {preset.value} requires LoRA file "
             f"'{overrides.lora_filename}' but it was not found at {lora_path}"
