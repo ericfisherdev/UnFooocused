@@ -194,10 +194,9 @@ def build_latent_previewer(*, vae_approx_path: str) -> LdmLatentPreviewer:
     import einops
     import ldm_patched.modules.model_management
     import torch
-    from modules.core_vae_approx import VAEApprox
 
     sd = torch.load(vae_approx_path, map_location="cpu", weights_only=True)
-    model = VAEApprox()
+    model = _build_vae_approx_model(torch)
     model.load_state_dict(sd)
     del sd
     model.eval()
@@ -246,6 +245,60 @@ def _should_use_tiled(latent: LatentTensor, threshold: int) -> bool:
         pixel_w = w * _LATENT_SCALE_FACTOR
         return pixel_h > threshold or pixel_w > threshold
     return False
+
+
+def _build_vae_approx_model(torch_module: Any) -> Any:
+    """Construct a VAEApprox neural network instance.
+
+    VAEApprox is a lightweight 8-layer convolutional network that approximates
+    VAE decoding. It converts 4-channel latents to 3-channel RGB previews
+    at 2x the latent resolution (still much smaller than full VAE output).
+
+    The architecture: 4->8->16->32->64->32->16->8->3 channels with
+    progressively smaller kernels (7x7, 5x5, then 3x3).
+
+    Args:
+        torch_module: The torch module (passed to avoid top-level import).
+
+    Returns:
+        An uninitialized VAEApprox model (weights must be loaded separately).
+    """
+    nn = torch_module.nn
+
+    class VAEApprox(nn.Module):
+        """Approximate VAE decoder for fast latent preview generation."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.conv1 = nn.Conv2d(4, 8, (7, 7))
+            self.conv2 = nn.Conv2d(8, 16, (5, 5))
+            self.conv3 = nn.Conv2d(16, 32, (3, 3))
+            self.conv4 = nn.Conv2d(32, 64, (3, 3))
+            self.conv5 = nn.Conv2d(64, 32, (3, 3))
+            self.conv6 = nn.Conv2d(32, 16, (3, 3))
+            self.conv7 = nn.Conv2d(16, 8, (3, 3))
+            self.conv8 = nn.Conv2d(8, 3, (3, 3))
+            self.current_type: Any = None
+
+        def forward(self, x: Any) -> Any:
+            extra = 11
+            x = nn.functional.interpolate(x, (x.shape[2] * 2, x.shape[3] * 2))
+            x = nn.functional.pad(x, (extra, extra, extra, extra))
+            for layer in [
+                self.conv1,
+                self.conv2,
+                self.conv3,
+                self.conv4,
+                self.conv5,
+                self.conv6,
+                self.conv7,
+                self.conv8,
+            ]:
+                x = layer(x)
+                x = nn.functional.leaky_relu(x, 0.1)
+            return x
+
+    return VAEApprox()
 
 
 def _pytorch_to_numpy(image_batch: Any) -> list[NDArray[Any]]:
