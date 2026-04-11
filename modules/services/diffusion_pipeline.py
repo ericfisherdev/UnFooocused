@@ -115,6 +115,15 @@ class PipelineConfig:
     refiner_swap_method: str = "joint"
     refiner_switch: float = 0.5
 
+    @property
+    def has_refiner(self) -> bool:
+        """Return True if this config specifies a real refiner checkpoint."""
+        path = self.refiner_path
+        if path is None:
+            return False
+        stripped = path.strip()
+        return stripped != "" and stripped != "None"
+
     @classmethod
     def from_task(cls, task: Any) -> PipelineConfig:
         """Build a PipelineConfig from an AsyncTask.
@@ -231,15 +240,6 @@ def compute_switch_step(refiner_switch: float, total_steps: int) -> int:
         Integer step number where the base model stops and refiner begins.
     """
     return round(refiner_switch * total_steps)
-
-
-def _has_refiner(config: PipelineConfig) -> bool:
-    """Return True if config specifies a real refiner path."""
-    path = config.refiner_path
-    if path is None:
-        return False
-    stripped = path.strip()
-    return stripped != "" and stripped != "None"
 
 
 # ---------------------------------------------------------------------------
@@ -360,7 +360,7 @@ class DiffusionPipeline:
                 break
 
             seed = self._compute_seed(config, image_index)
-            base_sampler_config = SamplerConfig(
+            sampler_config = SamplerConfig(
                 sampler_name=config.sampler_name,
                 scheduler=config.scheduler,
                 steps=config.steps,
@@ -371,17 +371,15 @@ class DiffusionPipeline:
                 height=config.height,
             )
 
-            step_callback = None
-            if progress_callback is not None:
-                step_callback = _make_step_callback(progress_callback, image_index)
+            step_callback = _make_step_callback(progress_callback, image_index) if progress_callback else None
 
             latent = self._sample_with_refiner(
                 model=model,
                 refiner_model=refiner_model,
                 positive=positive,
                 negative=negative,
-                config=config,
-                sampler_config=base_sampler_config,
+                swap_method=config.refiner_swap_method,
+                sampler_config=sampler_config,
                 callback=step_callback,
             )
 
@@ -391,39 +389,43 @@ class DiffusionPipeline:
 
         return results
 
+    # ------------------------------------------------------------------
+    # Refiner dispatch
+    # ------------------------------------------------------------------
+
     def _sample_with_refiner(
         self,
         model: StableDiffusionModel,
         refiner_model: StableDiffusionModel | None,
         positive: Conditioning,
         negative: Conditioning,
-        config: PipelineConfig,
+        swap_method: str,
         sampler_config: SamplerConfig,
         callback: Any,
     ) -> LatentTensor:
         """Dispatch to the appropriate swap method or base-only sampling."""
         if refiner_model is None:
-            return self._sampler.sample(
-                model=model,
-                positive=positive,
-                negative=negative,
-                latent=None,
-                config=sampler_config,
-                callback=callback,
-            )
+            return self._sample_base_only(model, positive, negative, sampler_config, callback)
 
-        method = RefinerSwapMethod(config.refiner_swap_method)
+        method = RefinerSwapMethod(swap_method)
 
         if method is RefinerSwapMethod.JOINT:
-            return self._sample_joint(model, positive, negative, sampler_config, callback)
+            return self._sample_base_only(model, positive, negative, sampler_config, callback)
 
-        if method is RefinerSwapMethod.SEPARATE:
-            return self._sample_separate(model, refiner_model, positive, negative, config, sampler_config, callback)
+        # Both 'separate' and 'vae' follow a two-pass pattern:
+        # base pass -> optional transform -> refiner pass with clip separation
+        interpose_fn = self._vae_interpose if method is RefinerSwapMethod.VAE else None
+        return self._sample_two_pass(
+            base_model=model,
+            refiner_model=refiner_model,
+            positive=positive,
+            negative=negative,
+            sampler_config=sampler_config,
+            callback=callback,
+            latent_transform=interpose_fn,
+        )
 
-        # method is RefinerSwapMethod.VAE
-        return self._sample_vae(model, refiner_model, positive, negative, config, sampler_config, callback)
-
-    def _sample_joint(
+    def _sample_base_only(
         self,
         model: StableDiffusionModel,
         positive: Conditioning,
@@ -431,7 +433,7 @@ class DiffusionPipeline:
         sampler_config: SamplerConfig,
         callback: Any,
     ) -> LatentTensor:
-        """Joint mode: single ksampler call (refiner handled internally by ksampler)."""
+        """Single-pass sampling with the base model only."""
         return self._sampler.sample(
             model=model,
             positive=positive,
@@ -441,20 +443,33 @@ class DiffusionPipeline:
             callback=callback,
         )
 
-    def _sample_separate(
+    def _sample_two_pass(
         self,
-        model: StableDiffusionModel,
+        base_model: StableDiffusionModel,
         refiner_model: StableDiffusionModel,
         positive: Conditioning,
         negative: Conditioning,
-        config: PipelineConfig,
         sampler_config: SamplerConfig,
         callback: Any,
+        latent_transform: VAEInterposeFn | None,
     ) -> LatentTensor:
-        """Separate mode: two ksampler calls, noise preserved between them."""
+        """Two-pass sampling: base model then refiner model.
+
+        Used by both 'separate' and 'vae' swap methods. The only difference
+        is whether a latent_transform (VAE interpose) is applied between passes.
+
+        Args:
+            base_model: Model for the first sampling pass.
+            refiner_model: Model for the second sampling pass.
+            positive: Positive CLIP conditioning.
+            negative: Negative CLIP conditioning.
+            sampler_config: Sampling parameters.
+            callback: Progress callback or None.
+            latent_transform: Optional transform applied to base output before refiner.
+        """
         # Base model pass
         base_latent = self._sampler.sample(
-            model=model,
+            model=base_model,
             positive=positive,
             negative=negative,
             latent=None,
@@ -462,43 +477,8 @@ class DiffusionPipeline:
             callback=callback,
         )
 
-        # Separate CLIP conditioning for refiner
-        ref_positive = self._separate_clip(positive, refiner_model)
-        ref_negative = self._separate_clip(negative, refiner_model)
-
-        # Refiner pass — uses base latent as input
-        return self._sampler.sample(
-            model=refiner_model,
-            positive=ref_positive,
-            negative=ref_negative,
-            latent=base_latent,
-            config=sampler_config,
-            callback=callback,
-        )
-
-    def _sample_vae(
-        self,
-        model: StableDiffusionModel,
-        refiner_model: StableDiffusionModel,
-        positive: Conditioning,
-        negative: Conditioning,
-        config: PipelineConfig,
-        sampler_config: SamplerConfig,
-        callback: Any,
-    ) -> LatentTensor:
-        """VAE mode: base samples, VAE interpose, refiner continues."""
-        # Base model pass
-        base_latent = self._sampler.sample(
-            model=model,
-            positive=positive,
-            negative=negative,
-            latent=None,
-            config=sampler_config,
-            callback=callback,
-        )
-
-        # VAE interpose — decode and reencode through latent space converter
-        interposed = self._vae_interpose(base_latent) if self._vae_interpose is not None else base_latent
+        # Optional latent transform (VAE interpose for 'vae' mode, None for 'separate')
+        refiner_latent = latent_transform(base_latent) if latent_transform is not None else base_latent
 
         # Separate CLIP conditioning for refiner
         ref_positive = self._separate_clip(positive, refiner_model)
@@ -509,7 +489,7 @@ class DiffusionPipeline:
             model=refiner_model,
             positive=ref_positive,
             negative=ref_negative,
-            latent=interposed,
+            latent=refiner_latent,
             config=sampler_config,
             callback=callback,
         )
@@ -527,6 +507,10 @@ class DiffusionPipeline:
                 target_clip=self._cached_model,
             )
         return cond
+
+    # ------------------------------------------------------------------
+    # Model loading
+    # ------------------------------------------------------------------
 
     def _load_model(self, config: PipelineConfig) -> StableDiffusionModel:
         """Load or return cached model based on checkpoint + LoRA + FreeU identity."""
@@ -563,10 +547,10 @@ class DiffusionPipeline:
 
     def _load_refiner(self, config: PipelineConfig) -> StableDiffusionModel | None:
         """Load refiner checkpoint if configured, else return None."""
-        if not _has_refiner(config):
+        if not config.has_refiner:
             return None
 
-        assert config.refiner_path is not None  # guaranteed by _has_refiner
+        assert config.refiner_path is not None  # guaranteed by has_refiner
         return self._model_loader.load_checkpoint(config.refiner_path)
 
     @staticmethod
