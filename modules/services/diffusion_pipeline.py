@@ -210,6 +210,8 @@ class DiffusionPipeline:
                 cfg_scale=config.cfg_scale,
                 seed=seed,
                 denoise=config.denoise,
+                width=config.width,
+                height=config.height,
             )
 
             step_callback = None

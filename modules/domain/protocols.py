@@ -64,6 +64,8 @@ class SamplerConfig:
         cfg_scale: Classifier-free guidance scale.
         seed: Random seed for reproducibility.
         denoise: Denoising strength, 0.0 (no change) to 1.0 (full denoise).
+        width: Output image width in pixels.
+        height: Output image height in pixels.
     """
 
     sampler_name: str
@@ -72,6 +74,8 @@ class SamplerConfig:
     cfg_scale: float
     seed: int
     denoise: float
+    width: int
+    height: int
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +124,30 @@ class ModelLoader(Protocol):
 
         Raises:
             FileNotFoundError: If any LoRA file does not exist.
+        """
+        ...
+
+    def apply_freeu(
+        self,
+        model: StableDiffusionModel,
+        b1: float,
+        b2: float,
+        s1: float,
+        s2: float,
+    ) -> StableDiffusionModel:
+        """Apply FreeU parameters to a loaded model.
+
+        FreeU patches the model's U-Net in-place to improve generation quality.
+
+        Args:
+            model: The model to apply FreeU parameters to.
+            b1: FreeU b1 backbone feature scaling factor.
+            b2: FreeU b2 backbone feature scaling factor.
+            s1: FreeU s1 skip feature scaling factor.
+            s2: FreeU s2 skip feature scaling factor.
+
+        Returns:
+            The model with FreeU parameters applied.
         """
         ...
 
