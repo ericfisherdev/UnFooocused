@@ -187,6 +187,17 @@ class TestGetVRAMStats:
 
         assert stats.used_bytes == 3 * 1024**3
 
+    def test_used_bytes_clamped_to_zero_when_free_exceeds_total(self) -> None:
+        """Torch memory reporting can report free > total in edge cases."""
+        fake_ldm = MagicMock()
+        fake_ldm.get_total_memory.return_value = 8 * 1024**3
+        fake_ldm.get_free_memory.return_value = 9 * 1024**3  # free > total
+
+        manager = _make_gpu_manager(ldm_model_management=fake_ldm)
+        stats = manager.get_vram_stats()
+
+        assert stats.used_bytes == 0
+
 
 # ---------------------------------------------------------------------------
 # VRAMStats value object tests
