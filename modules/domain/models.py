@@ -127,7 +127,7 @@ class PipelineConfig:
 
     Attributes:
         checkpoint: Metadata for the base checkpoint.
-        loras: Ordered list of LoRA adapters to apply.
+        loras: Ordered tuple of LoRA adapters to apply.
         sampler: Sampling configuration.
         width: Output image width in pixels (must be positive).
         height: Output image height in pixels (must be positive).
@@ -200,10 +200,11 @@ class PipelineConfig:
         )
 
         refiner = None
-        if hasattr(task, "refiner_model_name") and task.refiner_model_name != "None":
+        refiner_model_name = getattr(task, "refiner_model_name", None)
+        if isinstance(refiner_model_name, str) and refiner_model_name and refiner_model_name != "None":
             refiner = CheckpointMetadata(
-                filename=os.path.basename(task.refiner_model_name),
-                file_path=task.refiner_model_name,
+                filename=os.path.basename(refiner_model_name),
+                file_path=refiner_model_name,
                 is_sdxl=True,
             )
 
@@ -236,7 +237,7 @@ class GenerationResult:
     """Result of a completed generation run.
 
     Attributes:
-        image_paths: List of absolute paths to generated image files.
+        image_paths: Tuple of absolute paths to generated image files.
         elapsed_time: Total generation time in seconds (must be non-negative).
         seed_used: The seed used for this generation.
     """
