@@ -257,6 +257,20 @@ def scale_adm_dimensions(
     return width, height
 
 
+def round_to_64(x: float) -> int:
+    """Round a value to the nearest multiple of 64.
+
+    Used for SDXL ADM target dimensions which must align to 64-pixel blocks.
+
+    Args:
+        x: Value to round.
+
+    Returns:
+        Nearest multiple of 64.
+    """
+    return round(x / 64.0) * 64
+
+
 # ---------------------------------------------------------------------------
 # Sentinel for idempotent patching
 # ---------------------------------------------------------------------------
@@ -342,8 +356,7 @@ def _patched_sampling_function(
     positive_eps_degraded_weighted = positive_eps_degraded * alpha + positive_eps * (1.0 - alpha)
 
     mimic_cfg = float(state.adaptive_cfg)
-    real_cfg = float(cond_scale)
-    real_eps = negative_eps + real_cfg * (positive_eps_degraded_weighted - negative_eps)
+    real_eps = negative_eps + float(cond_scale) * (positive_eps_degraded_weighted - negative_eps)
 
     if cond_scale > state.adaptive_cfg:
         mimicked_eps = negative_eps + mimic_cfg * (positive_eps_degraded_weighted - negative_eps)
@@ -384,16 +397,13 @@ def _patched_sdxl_encode_adm(self: Any, **kwargs: Any) -> Any:
         negative_adm_scale=state.negative_adm_scale,
     )
 
-    def _round_to_64(x: float) -> int:
-        return round(x / 64.0) * 64
-
     def embedder(number_list: list[float]) -> Any:
         h = self.embedder(torch.tensor(number_list, dtype=torch.float32))
         h = torch.flatten(h).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return h
 
-    target_width = _round_to_64(target_width)
-    target_height = _round_to_64(target_height)
+    target_width = round_to_64(target_width)
+    target_height = round_to_64(target_height)
 
     adm_emphasized = embedder([height, width, 0, 0, target_height, target_width])
     adm_consistent = embedder([target_height, target_width, 0, 0, target_height, target_width])
