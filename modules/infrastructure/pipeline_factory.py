@@ -33,6 +33,10 @@ def build_pipeline() -> Any | None:
         logger.info("STUB_MODE=true — skipping pipeline construction")
         return None
 
+    if not _cuda_available():
+        logger.info("CUDA not available — skipping pipeline construction")
+        return None
+
     try:
         return _build_pipeline_from_ldm()
     except Exception:
@@ -41,6 +45,24 @@ def build_pipeline() -> Any | None:
             exc_info=True,
         )
         return None
+
+
+def _cuda_available() -> bool:
+    """Check if CUDA is available and can initialize without OOM.
+
+    Returns False if torch lacks CUDA support or if the GPU cannot
+    allocate a CUDA context (e.g. VRAM fully occupied by another process).
+    """
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            return False
+        # Force CUDA context initialization to catch OOM early
+        torch.cuda.current_device()
+        return True
+    except (AssertionError, RuntimeError, Exception):
+        return False
 
 
 def _get_model_patcher(model: Any) -> Any:
@@ -53,12 +75,28 @@ def _get_model_patcher(model: Any) -> Any:
     return getattr(model, "unet_with_lora", model)
 
 
+def _configure_ldm_args() -> None:
+    """Configure ldm_patched args for low VRAM before any ldm_patched import.
+
+    Must be called before importing ldm_patched.modules.model_management,
+    which reads args at module scope to determine VRAM strategy. Without
+    these settings, PyTorch eagerly reserves GPU memory and OOMs on 4GB cards.
+    """
+    from ldm_patched.modules.args_parser import args
+
+    args.disable_async_cuda_allocation = True
+    args.always_offload_from_vram = True
+    args.vae_in_cpu = True
+
+
 def _build_pipeline_from_ldm() -> Any:
     """Construct the pipeline from ldm_patched adapters.
 
     Imports ldm_patched modules (requires CUDA) and wires each
     infrastructure adapter with its concrete dependencies.
     """
+    _configure_ldm_args()
+
     import ldm_patched.contrib.external as external_nodes
     import ldm_patched.modules.sd
     from ldm_patched.k_diffusion.sampling import BrownianTreeNoiseSampler

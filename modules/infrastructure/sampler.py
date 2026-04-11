@@ -237,7 +237,8 @@ def _extract_sigma_range(sigmas: Any) -> tuple[float, float]:
         Tuple of (sigma_min, sigma_max) as floats.
     """
     positive_mask = sigmas > 0
-    if hasattr(sigmas, "values"):
+    is_fake = hasattr(sigmas, "values") and not hasattr(sigmas, "cpu")
+    if is_fake:
         # Fake sigmas path (unit tests)
         positive_values = [v for v, m in zip(sigmas.values, positive_mask, strict=False) if m]
         sigma_min = min(positive_values) if positive_values else 0.0

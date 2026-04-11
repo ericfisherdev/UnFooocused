@@ -102,6 +102,10 @@ class LdmVAEDecoder:
         use_tiled = _should_use_tiled(latent, self._tiled_threshold)
         inner_vae = getattr(vae, "vae", vae)
 
+        # On low VRAM systems, the UNet must be offloaded before VAE decode.
+        # Loading the VAE via model_management offloads other models automatically.
+        _load_vae_to_gpu(inner_vae)
+
         if use_tiled:
             logger.debug("Using tiled VAE decode (threshold=%d)", self._tiled_threshold)
             image_batch = self._vae_decode_tiled_op.decode(
@@ -110,10 +114,22 @@ class LdmVAEDecoder:
                 tile_size=_DEFAULT_TILE_SIZE,
             )[0]
         else:
-            image_batch = self._vae_decode_op.decode(
-                samples=latent,
-                vae=inner_vae,
-            )[0]
+            try:
+                image_batch = self._vae_decode_op.decode(
+                    samples=latent,
+                    vae=inner_vae,
+                )[0]
+            except RuntimeError as exc:
+                if "out of memory" in str(exc).lower():
+                    logger.warning("VAE decode OOM — retrying with tiled decoding")
+                    _soft_empty_cache()
+                    image_batch = self._vae_decode_tiled_op.decode(
+                        samples=latent,
+                        vae=inner_vae,
+                        tile_size=_DEFAULT_TILE_SIZE,
+                    )[0]
+                else:
+                    raise
 
         return _pytorch_to_numpy(image_batch)
 
@@ -229,6 +245,37 @@ def build_latent_previewer(*, vae_approx_path: str) -> LdmLatentPreviewer:
 # ---------------------------------------------------------------------------
 
 
+def _load_vae_to_gpu(vae: Any) -> None:
+    """Load the VAE model to GPU, offloading other models if needed.
+
+    On low VRAM systems, the UNet occupies most GPU memory after sampling.
+    This explicitly loads the VAE via model_management, which auto-offloads
+    the UNet to make room.
+    """
+    try:
+        import ldm_patched.modules.model_management
+
+        ldm_patched.modules.model_management.load_models_gpu([vae])
+    except ImportError:
+        pass
+    except Exception:
+        logger.debug("Failed to pre-load VAE to GPU", exc_info=True)
+
+
+def _soft_empty_cache() -> None:
+    """Free GPU cache memory after an OOM event before retrying."""
+    import gc
+
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        logger.debug("Failed to empty CUDA cache", exc_info=True)
+
+
 def _should_use_tiled(latent: LatentTensor, threshold: int) -> bool:
     """Determine whether tiled decoding should be used based on latent size.
 
@@ -318,5 +365,6 @@ def _pytorch_to_numpy(image_batch: Any) -> list[NDArray[Any]]:
     Returns:
         List of (H, W, 3) uint8 numpy arrays.
     """
-    arr = image_batch.cpu().numpy()
+    detached = image_batch.detach() if hasattr(image_batch, "detach") else image_batch
+    arr = detached.cpu().numpy()
     return [np.clip(255.0 * sample, 0, 255).astype(np.uint8) for sample in arr]
