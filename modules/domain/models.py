@@ -10,6 +10,7 @@ are permitted in this module.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -143,7 +144,7 @@ class PipelineConfig:
     """
 
     checkpoint: CheckpointMetadata
-    loras: list[LoRAConfig]
+    loras: tuple[LoRAConfig, ...]
     sampler: SamplerConfig
     width: int
     height: int
@@ -159,10 +160,13 @@ class PipelineConfig:
     freeu_s2: float = 0.2
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "loras", tuple(self.loras))
         if self.width <= 0:
             raise ValueError(f"width must be positive, got {self.width}")
         if self.height <= 0:
             raise ValueError(f"height must be positive, got {self.height}")
+        if self.refiner is not None and not 0.0 <= self.refiner_switch <= 1.0:
+            raise ValueError(f"refiner_switch must be between 0.0 and 1.0, got {self.refiner_switch}")
 
     @classmethod
     def from_task(cls, task: Any) -> PipelineConfig:
@@ -178,12 +182,12 @@ class PipelineConfig:
             A frozen PipelineConfig ready for pipeline consumption.
         """
         checkpoint = CheckpointMetadata(
-            filename=task.base_model_name,
+            filename=os.path.basename(task.base_model_name),
             file_path=task.base_model_name,
             is_sdxl=True,
         )
 
-        loras = [LoRAConfig(filename=name, weight=weight) for name, weight in task.loras]
+        loras = tuple(LoRAConfig(filename=name, weight=weight) for name, weight in task.loras)
 
         sampler = SamplerConfig(
             sampler_name=task.sampler_name,
@@ -196,7 +200,7 @@ class PipelineConfig:
         refiner = None
         if hasattr(task, "refiner_model_name") and task.refiner_model_name != "None":
             refiner = CheckpointMetadata(
-                filename=task.refiner_model_name,
+                filename=os.path.basename(task.refiner_model_name),
                 file_path=task.refiner_model_name,
                 is_sdxl=True,
             )
@@ -235,11 +239,12 @@ class GenerationResult:
         seed_used: The seed used for this generation.
     """
 
-    image_paths: list[str]
+    image_paths: tuple[str, ...]
     elapsed_time: float
     seed_used: int
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "image_paths", tuple(self.image_paths))
         if self.elapsed_time < 0:
             raise ValueError(f"elapsed_time must be non-negative, got {self.elapsed_time}")
 

@@ -382,6 +382,37 @@ class TestPipelineConfigConstruction:
         with pytest.raises(AttributeError):
             config.width = 512  # type: ignore[misc]
 
+    def test_rejects_refiner_switch_above_one(self) -> None:
+        from modules.domain.models import CheckpointMetadata
+
+        refiner = CheckpointMetadata(filename="refiner.safetensors", file_path="/refiner", is_sdxl=True)
+        with pytest.raises(ValueError, match="refiner_switch"):
+            _make_pipeline_config(refiner=refiner, refiner_switch=1.5)
+
+    def test_rejects_refiner_switch_below_zero(self) -> None:
+        from modules.domain.models import CheckpointMetadata
+
+        refiner = CheckpointMetadata(filename="refiner.safetensors", file_path="/refiner", is_sdxl=True)
+        with pytest.raises(ValueError, match="refiner_switch"):
+            _make_pipeline_config(refiner=refiner, refiner_switch=-0.1)
+
+    def test_refiner_switch_without_refiner_skips_validation(self) -> None:
+        config = _make_pipeline_config(refiner=None, refiner_switch=5.0)
+        assert config.refiner_switch == pytest.approx(5.0)
+
+    def test_loras_stored_as_tuple(self) -> None:
+        from modules.domain.models import LoRAConfig
+
+        lora = LoRAConfig(filename="detail.safetensors", weight=0.8)
+        config = _make_pipeline_config(loras=[lora])
+        assert isinstance(config.loras, tuple)
+
+    def test_image_paths_stored_as_tuple(self) -> None:
+        from modules.domain.models import GenerationResult
+
+        result = GenerationResult(image_paths=["/a.png", "/b.png"], elapsed_time=1.0, seed_used=1)
+        assert isinstance(result.image_paths, tuple)
+
 
 # ===========================================================================
 # AC6: PipelineConfig.from_task(task) factory
@@ -391,7 +422,15 @@ class TestPipelineConfigConstruction:
 class TestPipelineConfigFromTask:
     """AC6: PipelineConfig.from_task extracts params from AsyncTask."""
 
-    def test_extracts_checkpoint_name(self) -> None:
+    def test_extracts_checkpoint_basename_from_path(self) -> None:
+        from modules.domain.models import PipelineConfig
+
+        task = _make_fake_task(base_model_name="/models/checkpoints/juggernaut.safetensors")
+        config = PipelineConfig.from_task(task)
+        assert config.checkpoint.filename == "juggernaut.safetensors"
+        assert config.checkpoint.file_path == "/models/checkpoints/juggernaut.safetensors"
+
+    def test_extracts_checkpoint_name_when_bare(self) -> None:
         from modules.domain.models import PipelineConfig
 
         task = _make_fake_task(base_model_name="juggernaut.safetensors")
@@ -490,21 +529,21 @@ class TestGenerationResultConstruction:
             elapsed_time=2.5,
             seed_used=42,
         )
-        assert result.image_paths == ["/output/img_001.png"]
+        assert result.image_paths == ("/output/img_001.png",)
         assert result.elapsed_time == pytest.approx(2.5)
         assert result.seed_used == 42
 
     def test_equality(self) -> None:
         from modules.domain.models import GenerationResult
 
-        a = GenerationResult(image_paths=["/a.png"], elapsed_time=1.0, seed_used=1)
-        b = GenerationResult(image_paths=["/a.png"], elapsed_time=1.0, seed_used=1)
+        a = GenerationResult(image_paths=("/a.png",), elapsed_time=1.0, seed_used=1)
+        b = GenerationResult(image_paths=("/a.png",), elapsed_time=1.0, seed_used=1)
         assert a == b
 
     def test_immutability(self) -> None:
         from modules.domain.models import GenerationResult
 
-        result = GenerationResult(image_paths=["/a.png"], elapsed_time=1.0, seed_used=1)
+        result = GenerationResult(image_paths=("/a.png",), elapsed_time=1.0, seed_used=1)
         with pytest.raises(AttributeError):
             result.seed_used = 99  # type: ignore[misc]
 
@@ -512,7 +551,7 @@ class TestGenerationResultConstruction:
         from modules.domain.models import GenerationResult
 
         with pytest.raises(ValueError, match="elapsed_time"):
-            GenerationResult(image_paths=["/a.png"], elapsed_time=-1.0, seed_used=1)
+            GenerationResult(image_paths=("/a.png",), elapsed_time=-1.0, seed_used=1)
 
 
 # ===========================================================================
@@ -700,7 +739,7 @@ def _make_minimal_instance(cls: type) -> Any:
     if cls is m.PipelineConfig:
         return _make_pipeline_config()
     if cls is m.GenerationResult:
-        return cls(image_paths=["/a.png"], elapsed_time=1.0, seed_used=1)
+        return cls(image_paths=("/a.png",), elapsed_time=1.0, seed_used=1)
     if cls is m.DiffusionProgress:
         return cls(step=1, total_steps=10)
     raise ValueError(f"Unknown class: {cls}")
