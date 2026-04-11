@@ -45,9 +45,9 @@ class CheckpointMetadata:
     is_sdxl: bool
 
     def __post_init__(self) -> None:
-        if not self.filename:
+        if not self.filename or not self.filename.strip():
             raise ValueError("filename must not be empty")
-        if not self.file_path:
+        if not self.file_path or not self.file_path.strip():
             raise ValueError("file_path must not be empty")
 
 
@@ -73,7 +73,7 @@ class LoRAConfig:
     max_weight: float = field(default=_DEFAULT_LORA_MAX_WEIGHT, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        if not self.filename:
+        if not self.filename or not self.filename.strip():
             raise ValueError("filename must not be empty")
         if not (self.min_weight <= self.weight <= self.max_weight):
             raise ValueError(f"weight {self.weight} outside allowed range [{self.min_weight}, {self.max_weight}]")
@@ -201,7 +201,7 @@ class PipelineConfig:
 
         refiner = None
         refiner_model_name = getattr(task, "refiner_model_name", None)
-        if isinstance(refiner_model_name, str) and refiner_model_name and refiner_model_name != "None":
+        if isinstance(refiner_model_name, str) and refiner_model_name.strip() and refiner_model_name != "None":
             refiner = CheckpointMetadata(
                 filename=os.path.basename(refiner_model_name),
                 file_path=refiner_model_name,
