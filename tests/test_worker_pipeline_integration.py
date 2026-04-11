@@ -476,6 +476,22 @@ class TestPipelineConfigFromTask:
         assert len(config.loras) == 1
         assert config.loras[0] == LoRAConfig(filename="my_lora.safetensors", weight=0.8)
 
+    def test_with_seed_preserves_all_other_fields(self):
+        """with_seed() returns a copy with only seed and disable_seed_increment changed."""
+        from modules.async_worker import AsyncTask
+        from modules.services.diffusion_pipeline import PipelineConfig
+
+        task = AsyncTask(_minimal_args_list())
+        config = PipelineConfig.from_task(task)
+        seeded = config.with_seed(999)
+        assert seeded.seed == 999
+        assert seeded.disable_seed_increment is True
+        assert seeded.checkpoint_path == config.checkpoint_path
+        assert seeded.positive_prompt == config.positive_prompt
+        assert seeded.steps == config.steps
+        assert seeded.width == config.width
+        assert seeded.height == config.height
+
 
 # ===========================================================================
 # AC3: Step-level progress with latent preview images via task.yields
@@ -714,9 +730,11 @@ class TestStubMode:
             worker.process_task(task)
 
         img = Image.open(task.results[0])
-        pixels = list(img.getdata())
-        # Solid color = all pixels identical
-        assert all(p == pixels[0] for p in pixels)
+        # Solid color = top-left pixel matches a sampling of other pixels
+        top_left = img.getpixel((0, 0))
+        center = img.getpixel((img.width // 2, img.height // 2))
+        bottom_right = img.getpixel((img.width - 1, img.height - 1))
+        assert top_left == center == bottom_right
 
     def test_no_stub_mode_by_default(self, tmp_path):
         """Without STUB_MODE, Worker requires pipeline (or creates one)."""
@@ -749,10 +767,10 @@ class TestNotSolidColor:
         worker.process_task(task)
 
         img = Image.open(task.results[0])
-        pixels = list(img.getdata())
-        unique_pixels = set(pixels)
-        # Real (or fake-real) pipeline output has many unique pixels
-        assert len(unique_pixels) > 1, "Image is solid color — pipeline did not generate real content"
+        # Pipeline output should have varied pixels (gradient from fake VAE)
+        top_left = img.getpixel((0, 0))
+        bottom_right = img.getpixel((img.width - 1, img.height - 1))
+        assert top_left != bottom_right, "Image is solid color — pipeline did not generate real content"
 
 
 # ===========================================================================

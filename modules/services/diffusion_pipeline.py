@@ -122,6 +122,44 @@ class PipelineConfig:
             freeu_s2=task.freeu_s2,
         )
 
+    def with_seed(self, seed: int) -> PipelineConfig:
+        """Return a copy with a different seed and disable_seed_increment=True.
+
+        Used by the Worker to create per-image configs from a base config
+        without reconstructing all 20 fields manually.
+
+        Args:
+            seed: The seed to use for this specific image.
+
+        Returns:
+            A new frozen PipelineConfig identical to self except for seed
+            and disable_seed_increment.
+        """
+        # dataclasses.replace not used because frozen + slots + list field
+        # causes issues in some Python versions; explicit construction is safe.
+        return PipelineConfig(
+            checkpoint_path=self.checkpoint_path,
+            loras=self.loras,
+            positive_prompt=self.positive_prompt,
+            negative_prompt=self.negative_prompt,
+            sampler_name=self.sampler_name,
+            scheduler=self.scheduler,
+            steps=self.steps,
+            cfg_scale=self.cfg_scale,
+            seed=seed,
+            denoise=self.denoise,
+            image_number=1,
+            clip_skip=self.clip_skip,
+            width=self.width,
+            height=self.height,
+            disable_seed_increment=True,
+            freeu_enabled=self.freeu_enabled,
+            freeu_b1=self.freeu_b1,
+            freeu_b2=self.freeu_b2,
+            freeu_s1=self.freeu_s1,
+            freeu_s2=self.freeu_s2,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class GenerationResult:
