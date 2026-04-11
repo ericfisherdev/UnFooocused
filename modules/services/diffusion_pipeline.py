@@ -106,10 +106,19 @@ class GenerationResult:
 
 @dataclass(frozen=True, slots=True)
 class _ModelCacheKey:
-    """Tracks loaded model identity for cache invalidation."""
+    """Tracks loaded model identity for cache invalidation.
+
+    Includes FreeU state because FreeU patches the model in-place —
+    toggling it requires a fresh model reload.
+    """
 
     checkpoint_path: str
     loras: tuple[LoRAConfig, ...]
+    freeu_enabled: bool
+    freeu_b1: float
+    freeu_b2: float
+    freeu_s1: float
+    freeu_s2: float
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +164,10 @@ class DiffusionPipeline:
 
         self._cached_key: _ModelCacheKey | None = None
         self._cached_model: StableDiffusionModel | None = None
+
+    def __repr__(self) -> str:
+        cached = self._cached_key.checkpoint_path if self._cached_key else "none"
+        return f"DiffusionPipeline(cached_checkpoint={cached!r})"
 
     def generate(
         self,
@@ -219,40 +232,33 @@ class DiffusionPipeline:
         return results
 
     def _load_model(self, config: PipelineConfig) -> StableDiffusionModel:
-        """Load or return cached model based on checkpoint + LoRA identity."""
+        """Load or return cached model based on checkpoint + LoRA + FreeU identity."""
         cache_key = _ModelCacheKey(
             checkpoint_path=config.checkpoint_path,
             loras=tuple(config.loras),
+            freeu_enabled=config.freeu_enabled,
+            freeu_b1=config.freeu_b1,
+            freeu_b2=config.freeu_b2,
+            freeu_s1=config.freeu_s1,
+            freeu_s2=config.freeu_s2,
         )
 
         if cache_key == self._cached_key and self._cached_model is not None:
-            model = self._cached_model
-        else:
-            needs_checkpoint_reload = (
-                self._cached_key is None or config.checkpoint_path != self._cached_key.checkpoint_path
+            return self._cached_model
+
+        model = self._model_loader.load_checkpoint(config.checkpoint_path)
+        self._text_encoder.clear_cache()
+
+        if config.loras:
+            model = self._model_loader.load_loras(model, config.loras)
+
+        if config.freeu_enabled:
+            model = self._model_loader.apply_freeu(
+                model, config.freeu_b1, config.freeu_b2, config.freeu_s1, config.freeu_s2
             )
 
-            if needs_checkpoint_reload:
-                model = self._model_loader.load_checkpoint(config.checkpoint_path)
-                self._text_encoder.clear_cache()
-            else:
-                # Checkpoint same, only LoRAs changed — reload checkpoint
-                # to get a clean base for new LoRA application.
-                model = self._model_loader.load_checkpoint(config.checkpoint_path)
-                self._text_encoder.clear_cache()
-
-            if config.loras:
-                model = self._model_loader.load_loras(model, config.loras)
-
-            if config.freeu_enabled:
-                model = self._model_loader.apply_freeu(
-                    model, config.freeu_b1, config.freeu_b2, config.freeu_s1, config.freeu_s2
-                )
-
-            self._cached_key = cache_key
-            self._cached_model = model
-
-        # FreeU for cached model path — already applied during initial load
+        self._cached_key = cache_key
+        self._cached_model = model
         return model
 
     @staticmethod
