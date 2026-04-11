@@ -259,7 +259,7 @@ class DiffusionProgress:
     """Progress snapshot during diffusion sampling.
 
     Attributes:
-        step: Current step number (0-indexed, 0 means not started).
+        step: Completed step count (0 means not started, total_steps means complete).
         total_steps: Total number of steps (must be positive).
         preview_image: Optional preview image (opaque type, no PIL dependency).
     """

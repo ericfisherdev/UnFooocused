@@ -658,6 +658,12 @@ class TestNoForbiddenImports:
                     assert not node.module.startswith(forbidden), (
                         f"models.py must not import from {forbidden}, found: from {node.module}"
                     )
+                if node.module == "modules":
+                    forbidden_children = {"infrastructure", "services"}
+                    for alias in node.names:
+                        assert alias.name not in forbidden_children, (
+                            f"models.py must not import modules.{alias.name}, found: from modules import {alias.name}"
+                        )
 
 
 # ===========================================================================
