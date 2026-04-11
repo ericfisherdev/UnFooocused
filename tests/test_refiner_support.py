@@ -94,8 +94,6 @@ class FakeSampler:
         latent: LatentTensor,
         config: SamplerConfig,
         callback: ProgressCallback | None,
-        refiner_model: StableDiffusionModel | None = None,
-        switch_step: int | None = None,
     ) -> LatentTensor:
         self.sample_calls.append(
             {
@@ -104,8 +102,6 @@ class FakeSampler:
                 "negative": negative,
                 "latent": latent,
                 "config": config,
-                "refiner_model": refiner_model,
-                "switch_step": switch_step,
             }
         )
         if callback is not None:
@@ -275,8 +271,8 @@ class TestRefinerModelLoading:
 class TestJointSwapMethod:
     """AC2: 'joint' swap method passes refiner to ksampler."""
 
-    def test_joint_mode_passes_refiner_to_sampler(self) -> None:
-        """In joint mode, sampler receives both base and refiner model."""
+    def test_joint_mode_uses_two_pass(self) -> None:
+        """Joint mode uses two-pass sampling like separate mode."""
         fx = _make_pipeline()
         config = _make_config(
             refiner_path="/models/refiner.safetensors",
@@ -284,12 +280,10 @@ class TestJointSwapMethod:
             refiner_switch=0.8,
         )
         fx.pipeline.generate(config)
-        assert len(fx.sampler.sample_calls) == 1
-        call = fx.sampler.sample_calls[0]
-        assert call["refiner_model"] is not None
+        assert len(fx.sampler.sample_calls) == 2
 
-    def test_joint_mode_single_ksampler_call(self) -> None:
-        """Joint mode uses exactly one ksampler call (not two)."""
+    def test_joint_mode_base_pass_uses_switch_steps(self) -> None:
+        """Base pass runs for switch_step steps (80% of 30 = 24)."""
         fx = _make_pipeline()
         config = _make_config(
             refiner_path="/models/refiner.safetensors",
@@ -297,10 +291,11 @@ class TestJointSwapMethod:
             refiner_switch=0.8,
         )
         fx.pipeline.generate(config)
-        assert len(fx.sampler.sample_calls) == 1
+        base_call = fx.sampler.sample_calls[0]
+        assert base_call["config"].steps == round(0.8 * config.steps)
 
-    def test_joint_mode_switch_step_computed(self) -> None:
-        """Joint mode computes switch step from refiner_switch fraction."""
+    def test_joint_mode_refiner_pass_uses_remaining_steps(self) -> None:
+        """Refiner pass runs for remaining steps (30 - 24 = 6)."""
         fx = _make_pipeline()
         config = _make_config(
             refiner_path="/models/refiner.safetensors",
@@ -308,9 +303,9 @@ class TestJointSwapMethod:
             refiner_switch=0.8,
         )
         fx.pipeline.generate(config)
-        call = fx.sampler.sample_calls[0]
-        # 0.8 * 30 steps = 24
-        assert call["switch_step"] == round(0.8 * config.steps)
+        refiner_call = fx.sampler.sample_calls[1]
+        expected_refiner_steps = config.steps - round(0.8 * config.steps)
+        assert refiner_call["config"].steps == expected_refiner_steps
 
 
 # ===========================================================================

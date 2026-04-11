@@ -206,8 +206,6 @@ class Sampler(Protocol):
         latent: LatentTensor,
         config: SamplerConfig,
         callback: ProgressCallback | None,
-        refiner_model: StableDiffusionModel | None = None,
-        switch_step: int | None = None,
     ) -> LatentTensor:
         """Run the denoising loop to produce a sampled latent.
 
@@ -218,8 +216,6 @@ class Sampler(Protocol):
             latent: Initial latent tensor (empty noise or img2img input).
             config: Sampling parameters (steps, cfg, scheduler, etc.).
             callback: Optional progress callback invoked after each step.
-            refiner_model: Optional refiner model for joint handoff.
-            switch_step: Step at which to switch to refiner (joint mode).
 
         Returns:
             The denoised latent tensor ready for VAE decoding.
