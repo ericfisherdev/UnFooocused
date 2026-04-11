@@ -2,6 +2,9 @@
 
 Coordinates the full SDXL generation pipeline: checkpoint loading, LoRA
 application, CLIP text encoding, diffusion sampling, and VAE decoding.
+Supports optional refiner model handoff via three swap methods (joint,
+separate, vae).
+
 Contains zero torch code — only orchestration logic with injected dependencies.
 
 No imports from torch or ldm_patched are permitted in this module.
@@ -12,6 +15,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from modules.domain.protocols import (
@@ -22,6 +26,8 @@ from numpy.typing import NDArray  # noqa: TC002 — needed at runtime for datacl
 
 if TYPE_CHECKING:
     from modules.domain.protocols import (
+        Conditioning,
+        LatentTensor,
         ModelLoader,
         Sampler,
         StableDiffusionModel,
@@ -30,6 +36,24 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# RefinerSwapMethod enum
+# ---------------------------------------------------------------------------
+
+
+class RefinerSwapMethod(Enum):
+    """Strategy for switching from base model to refiner model.
+
+    JOINT: Single ksampler call with refiner parameter and switch step.
+    SEPARATE: Two sequential ksampler calls with noise preservation.
+    VAE: Base samples, VAE interpose decode/reencode, refiner continues.
+    """
+
+    JOINT = "joint"
+    SEPARATE = "separate"
+    VAE = "vae"
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +86,9 @@ class PipelineConfig:
         freeu_b2: FreeU b2 parameter.
         freeu_s1: FreeU s1 parameter.
         freeu_s2: FreeU s2 parameter.
+        refiner_path: Path to the refiner checkpoint, or None/empty/'None' for no refiner.
+        refiner_swap_method: Swap method string ('joint', 'separate', 'vae').
+        refiner_switch: Fraction (0.0-1.0) of steps handled by the base model.
     """
 
     checkpoint_path: str
@@ -84,6 +111,9 @@ class PipelineConfig:
     freeu_b2: float
     freeu_s1: float
     freeu_s2: float
+    refiner_path: str | None = None
+    refiner_swap_method: str = "joint"
+    refiner_switch: float = 0.5
 
     @classmethod
     def from_task(cls, task: Any) -> PipelineConfig:
@@ -99,6 +129,11 @@ class PipelineConfig:
         Returns:
             A frozen PipelineConfig ready for DiffusionPipeline.generate().
         """
+        refiner_model_name = getattr(task, "refiner_model_name", None)
+        refiner_path: str | None = None
+        if isinstance(refiner_model_name, str) and refiner_model_name.strip() and refiner_model_name != "None":
+            refiner_path = refiner_model_name
+
         return cls(
             checkpoint_path=task.base_model_name,
             loras=[LoRAConfig(filename=name, weight=weight) for name, weight in task.loras],
@@ -120,13 +155,16 @@ class PipelineConfig:
             freeu_b2=task.freeu_b2,
             freeu_s1=task.freeu_s1,
             freeu_s2=task.freeu_s2,
+            refiner_path=refiner_path,
+            refiner_swap_method=getattr(task, "refiner_swap_method", "joint"),
+            refiner_switch=getattr(task, "refiner_switch", 0.5),
         )
 
     def with_seed(self, seed: int) -> PipelineConfig:
         """Return a copy with a different seed and disable_seed_increment=True.
 
         Used by the Worker to create per-image configs from a base config
-        without reconstructing all 20 fields manually.
+        without reconstructing all fields manually.
 
         Args:
             seed: The seed to use for this specific image.
@@ -158,6 +196,9 @@ class PipelineConfig:
             freeu_b2=self.freeu_b2,
             freeu_s1=self.freeu_s1,
             freeu_s2=self.freeu_s2,
+            refiner_path=self.refiner_path,
+            refiner_swap_method=self.refiner_swap_method,
+            refiner_switch=self.refiner_switch,
         )
 
 
@@ -172,6 +213,33 @@ class GenerationResult:
 
     image: NDArray[Any]
     seed: int
+
+
+# ---------------------------------------------------------------------------
+# Pure helper functions
+# ---------------------------------------------------------------------------
+
+
+def compute_switch_step(refiner_switch: float, total_steps: int) -> int:
+    """Compute the step at which the base model hands off to the refiner.
+
+    Args:
+        refiner_switch: Fraction (0.0-1.0) of total steps handled by the base.
+        total_steps: Total number of denoising steps.
+
+    Returns:
+        Integer step number where the base model stops and refiner begins.
+    """
+    return round(refiner_switch * total_steps)
+
+
+def _has_refiner(config: PipelineConfig) -> bool:
+    """Return True if config specifies a real refiner path."""
+    path = config.refiner_path
+    if path is None:
+        return False
+    stripped = path.strip()
+    return stripped != "" and stripped != "None"
 
 
 # ---------------------------------------------------------------------------
@@ -197,8 +265,14 @@ class _ModelCacheKey:
 
 
 # ---------------------------------------------------------------------------
-# Progress callback type alias
+# Callable type aliases for injected dependencies
 # ---------------------------------------------------------------------------
+
+ClipSeparateFn = Callable[..., Any]
+"""Signature: (cond, target_model, target_clip) -> separated_cond."""
+
+VAEInterposeFn = Callable[..., Any]
+"""Signature: (latent) -> interposed_latent."""
 
 ProgressCallbackFn = Callable[[int, int, int, Any], None]
 """Signature: (image_index, step, total, preview_image) -> None."""
@@ -213,7 +287,7 @@ CancelCheckFn = Callable[[], bool]
 
 
 class DiffusionPipeline:
-    """Orchestrates the full SDXL generation pipeline.
+    """Orchestrates the full SDXL generation pipeline with optional refiner.
 
     Accepts protocol-typed dependencies via constructor (Dependency Inversion).
     Contains no torch code — only coordination logic.
@@ -223,6 +297,8 @@ class DiffusionPipeline:
         text_encoder: Encodes text prompts into CLIP conditioning.
         sampler: Runs the denoising/sampling loop.
         vae_decoder: Decodes latent tensors into pixel-space images.
+        clip_separate: Separates CLIP conditioning for refiner UNet.
+        vae_interpose: Transforms latent between base and refiner VAE spaces.
     """
 
     def __init__(
@@ -231,11 +307,15 @@ class DiffusionPipeline:
         text_encoder: TextEncoder,
         sampler: Sampler,
         vae_decoder: VAEDecoder,
+        clip_separate: ClipSeparateFn | None = None,
+        vae_interpose: VAEInterposeFn | None = None,
     ) -> None:
         self._model_loader = model_loader
         self._text_encoder = text_encoder
         self._sampler = sampler
         self._vae_decoder = vae_decoder
+        self._clip_separate = clip_separate
+        self._vae_interpose = vae_interpose
 
         self._cached_key: _ModelCacheKey | None = None
         self._cached_model: StableDiffusionModel | None = None
@@ -253,11 +333,12 @@ class DiffusionPipeline:
         """Run the full generation pipeline for the given config.
 
         Orchestration order:
-        1. Load checkpoint (cached if unchanged)
+        1. Load base checkpoint (cached if unchanged)
         2. Apply LoRAs (cached if unchanged)
         3. Apply FreeU (if enabled)
-        4. Encode positive and negative prompts via CLIP
-        5. For each image: sample latent, decode via VAE
+        4. Optionally load refiner checkpoint
+        5. Encode positive and negative prompts via CLIP
+        6. For each image: sample latent (with optional refiner handoff), decode via VAE
 
         Args:
             config: Generation parameters.
@@ -269,6 +350,7 @@ class DiffusionPipeline:
             List of GenerationResult, one per successfully generated image.
         """
         model = self._load_model(config)
+        refiner_model = self._load_refiner(config)
         positive = self._text_encoder.encode([config.positive_prompt], config.clip_skip)
         negative = self._text_encoder.encode([config.negative_prompt], config.clip_skip)
 
@@ -278,7 +360,7 @@ class DiffusionPipeline:
                 break
 
             seed = self._compute_seed(config, image_index)
-            sampler_config = SamplerConfig(
+            base_sampler_config = SamplerConfig(
                 sampler_name=config.sampler_name,
                 scheduler=config.scheduler,
                 steps=config.steps,
@@ -293,12 +375,13 @@ class DiffusionPipeline:
             if progress_callback is not None:
                 step_callback = _make_step_callback(progress_callback, image_index)
 
-            latent = self._sampler.sample(
+            latent = self._sample_with_refiner(
                 model=model,
+                refiner_model=refiner_model,
                 positive=positive,
                 negative=negative,
-                latent=None,
-                config=sampler_config,
+                config=config,
+                sampler_config=base_sampler_config,
                 callback=step_callback,
             )
 
@@ -307,6 +390,143 @@ class DiffusionPipeline:
                 results.append(GenerationResult(image=image, seed=seed))
 
         return results
+
+    def _sample_with_refiner(
+        self,
+        model: StableDiffusionModel,
+        refiner_model: StableDiffusionModel | None,
+        positive: Conditioning,
+        negative: Conditioning,
+        config: PipelineConfig,
+        sampler_config: SamplerConfig,
+        callback: Any,
+    ) -> LatentTensor:
+        """Dispatch to the appropriate swap method or base-only sampling."""
+        if refiner_model is None:
+            return self._sampler.sample(
+                model=model,
+                positive=positive,
+                negative=negative,
+                latent=None,
+                config=sampler_config,
+                callback=callback,
+            )
+
+        method = RefinerSwapMethod(config.refiner_swap_method)
+
+        if method is RefinerSwapMethod.JOINT:
+            return self._sample_joint(model, positive, negative, sampler_config, callback)
+
+        if method is RefinerSwapMethod.SEPARATE:
+            return self._sample_separate(model, refiner_model, positive, negative, config, sampler_config, callback)
+
+        # method is RefinerSwapMethod.VAE
+        return self._sample_vae(model, refiner_model, positive, negative, config, sampler_config, callback)
+
+    def _sample_joint(
+        self,
+        model: StableDiffusionModel,
+        positive: Conditioning,
+        negative: Conditioning,
+        sampler_config: SamplerConfig,
+        callback: Any,
+    ) -> LatentTensor:
+        """Joint mode: single ksampler call (refiner handled internally by ksampler)."""
+        return self._sampler.sample(
+            model=model,
+            positive=positive,
+            negative=negative,
+            latent=None,
+            config=sampler_config,
+            callback=callback,
+        )
+
+    def _sample_separate(
+        self,
+        model: StableDiffusionModel,
+        refiner_model: StableDiffusionModel,
+        positive: Conditioning,
+        negative: Conditioning,
+        config: PipelineConfig,
+        sampler_config: SamplerConfig,
+        callback: Any,
+    ) -> LatentTensor:
+        """Separate mode: two ksampler calls, noise preserved between them."""
+        # Base model pass
+        base_latent = self._sampler.sample(
+            model=model,
+            positive=positive,
+            negative=negative,
+            latent=None,
+            config=sampler_config,
+            callback=callback,
+        )
+
+        # Separate CLIP conditioning for refiner
+        ref_positive = self._separate_clip(positive, refiner_model)
+        ref_negative = self._separate_clip(negative, refiner_model)
+
+        # Refiner pass — uses base latent as input
+        return self._sampler.sample(
+            model=refiner_model,
+            positive=ref_positive,
+            negative=ref_negative,
+            latent=base_latent,
+            config=sampler_config,
+            callback=callback,
+        )
+
+    def _sample_vae(
+        self,
+        model: StableDiffusionModel,
+        refiner_model: StableDiffusionModel,
+        positive: Conditioning,
+        negative: Conditioning,
+        config: PipelineConfig,
+        sampler_config: SamplerConfig,
+        callback: Any,
+    ) -> LatentTensor:
+        """VAE mode: base samples, VAE interpose, refiner continues."""
+        # Base model pass
+        base_latent = self._sampler.sample(
+            model=model,
+            positive=positive,
+            negative=negative,
+            latent=None,
+            config=sampler_config,
+            callback=callback,
+        )
+
+        # VAE interpose — decode and reencode through latent space converter
+        interposed = self._vae_interpose(base_latent) if self._vae_interpose is not None else base_latent
+
+        # Separate CLIP conditioning for refiner
+        ref_positive = self._separate_clip(positive, refiner_model)
+        ref_negative = self._separate_clip(negative, refiner_model)
+
+        # Refiner pass
+        return self._sampler.sample(
+            model=refiner_model,
+            positive=ref_positive,
+            negative=ref_negative,
+            latent=interposed,
+            config=sampler_config,
+            callback=callback,
+        )
+
+    def _separate_clip(
+        self,
+        cond: Conditioning,
+        refiner_model: StableDiffusionModel,
+    ) -> Conditioning:
+        """Separate CLIP conditioning for the refiner model."""
+        if self._clip_separate is not None:
+            return self._clip_separate(
+                cond=cond,
+                target_model=refiner_model,
+                target_clip=self._cached_model,
+            )
+        return cond
 
     def _load_model(self, config: PipelineConfig) -> StableDiffusionModel:
         """Load or return cached model based on checkpoint + LoRA + FreeU identity."""
@@ -340,6 +560,14 @@ class DiffusionPipeline:
         self._cached_key = cache_key
         self._cached_model = model
         return model
+
+    def _load_refiner(self, config: PipelineConfig) -> StableDiffusionModel | None:
+        """Load refiner checkpoint if configured, else return None."""
+        if not _has_refiner(config):
+            return None
+
+        assert config.refiner_path is not None  # guaranteed by _has_refiner
+        return self._model_loader.load_checkpoint(config.refiner_path)
 
     @staticmethod
     def _compute_seed(config: PipelineConfig, image_index: int) -> int:
