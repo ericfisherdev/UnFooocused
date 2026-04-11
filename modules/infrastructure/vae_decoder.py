@@ -304,7 +304,7 @@ def _build_vae_approx_model(torch_module: Any) -> Any:
 def _pytorch_to_numpy(image_batch: Any) -> list[NDArray[Any]]:
     """Convert a batch of torch image tensors to uint8 numpy arrays.
 
-    Mirrors FwdFooocus's core.pytorch_to_numpy: clips to [0, 255] and
+    Mirrors core.pytorch_to_numpy: clips to [0, 255] and
     converts to uint8. Handles both real torch tensors and fakes that
     support .cpu().numpy().
 
