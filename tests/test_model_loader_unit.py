@@ -227,6 +227,72 @@ class TestDomainExceptions:
         assert "SDXL" in str(err)
 
 
+# ---------------------------------------------------------------------------
+# FreeU application (UNF-42)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.gpu
+class TestFreeUApplication:
+    """UNF-42: apply_freeu patches UNet via ldm_patched FreeU_V2.
+
+    Requires torch/GPU environment (ldm_patched imports trigger torch).
+    Run with: pytest -m gpu
+    """
+
+    def test_apply_freeu_calls_freeu_v2_patch(self) -> None:
+        """FreeU_V2.patch is called with model's unet_with_lora and parameters."""
+        loader, model = _make_loader_and_model_for_freeu()
+
+        with patch("modules.infrastructure.model_loader._freeu_op") as mock_op:
+            patched_unet = MagicMock()
+            mock_op.patch.return_value = (patched_unet,)
+            loader.apply_freeu(model, b1=1.3, b2=1.4, s1=0.9, s2=0.2)
+
+            mock_op.patch.assert_called_once_with(
+                model=model.unet_with_lora,
+                b1=1.3,
+                b2=1.4,
+                s1=0.9,
+                s2=0.2,
+            )
+
+    def test_apply_freeu_updates_unet_with_lora(self) -> None:
+        """After apply_freeu, model.unet_with_lora is the patched version."""
+        loader, model = _make_loader_and_model_for_freeu()
+
+        with patch("modules.infrastructure.model_loader._freeu_op") as mock_op:
+            patched_unet = MagicMock(name="patched_unet")
+            mock_op.patch.return_value = (patched_unet,)
+            result = loader.apply_freeu(model, b1=1.3, b2=1.4, s1=0.9, s2=0.2)
+
+            assert result.unet_with_lora is patched_unet
+
+    def test_apply_freeu_returns_same_model_instance(self) -> None:
+        """apply_freeu mutates and returns the same model (in-place patch)."""
+        loader, model = _make_loader_and_model_for_freeu()
+
+        with patch("modules.infrastructure.model_loader._freeu_op") as mock_op:
+            mock_op.patch.return_value = (MagicMock(),)
+            result = loader.apply_freeu(model, b1=1.3, b2=1.4, s1=0.9, s2=0.2)
+
+            assert result is model
+
+    def test_apply_freeu_passes_custom_parameters(self) -> None:
+        """Non-default FreeU parameters are passed through correctly."""
+        loader, model = _make_loader_and_model_for_freeu()
+
+        with patch("modules.infrastructure.model_loader._freeu_op") as mock_op:
+            mock_op.patch.return_value = (MagicMock(),)
+            loader.apply_freeu(model, b1=1.1, b2=1.2, s1=0.5, s2=0.3)
+
+            call_kwargs = mock_op.patch.call_args
+            assert call_kwargs.kwargs["b1"] == pytest.approx(1.1)
+            assert call_kwargs.kwargs["b2"] == pytest.approx(1.2)
+            assert call_kwargs.kwargs["s1"] == pytest.approx(0.5)
+            assert call_kwargs.kwargs["s2"] == pytest.approx(0.3)
+
+
 # ===========================================================================
 # Test helpers — fakes and factory functions
 # ===========================================================================
@@ -267,6 +333,42 @@ def _make_fake_non_sdxl_load_result() -> tuple:
     fake_clip.cond_stage_model.state_dict.return_value = {}
 
     return (fake_model, fake_clip, MagicMock(), "vae.safetensors", None)
+
+
+def _make_loader_and_model_for_freeu() -> tuple[Any, Any]:
+    """Create a loader + _LoadedModel for FreeU tests without torch.
+
+    Bypasses load_checkpoint (which needs torch for SDXL validation)
+    by constructing _LoadedModel directly with MagicMock components.
+    This isolates FreeU testing from checkpoint loading infrastructure.
+    """
+    from modules.infrastructure.model_loader import LdmModelLoader, _LoadedModel
+
+    loader = LdmModelLoader(
+        resolve_path=lambda name: f"/fake/{name}",
+        load_fn=MagicMock(),
+        embedding_directory="",
+        lora_paths=[],
+    )
+
+    # Build _LoadedModel directly — patch __init__ to skip LoRA key map
+    # initialization which requires real model objects
+    with patch.object(_LoadedModel, "__init__", lambda self, **kw: None):
+        model = _LoadedModel.__new__(_LoadedModel)
+
+    model.unet = MagicMock(name="fake_unet")
+    model.clip = MagicMock(name="fake_clip")
+    model.vae = MagicMock(name="fake_vae")
+    model.clip_vision = None
+    model.filename = "model.safetensors"
+    model.vae_filename = "vae.safetensors"
+    model.unet_with_lora = model.unet
+    model.clip_with_lora = model.clip
+    model._visited_loras = ""
+    model._lora_key_map_unet = {}
+    model._lora_key_map_clip = {}
+
+    return loader, model
 
 
 def _make_loader(**kwargs: Any) -> Any:
