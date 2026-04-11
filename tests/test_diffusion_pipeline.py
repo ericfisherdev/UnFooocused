@@ -40,19 +40,26 @@ from modules.domain.protocols import (
 
 
 class FakeModelLoader:
-    """Records calls and returns deterministic fakes."""
+    """Records calls and returns deterministic fakes.
+
+    Maintains an ordered event_log for verifying call sequence across
+    checkpoint loading, LoRA application, and FreeU patching.
+    """
 
     def __init__(self) -> None:
         self.load_checkpoint_calls: list[str] = []
         self.load_loras_calls: list[tuple[Any, list[LoRAConfig]]] = []
         self.apply_freeu_calls: list[tuple[float, float, float, float]] = []
+        self.event_log: list[tuple[str, ...]] = []
 
     def load_checkpoint(self, path: str) -> StableDiffusionModel:
         self.load_checkpoint_calls.append(path)
+        self.event_log.append(("checkpoint", path))
         return {"type": "model", "checkpoint": path}
 
     def load_loras(self, model: StableDiffusionModel, loras: list[LoRAConfig]) -> StableDiffusionModel:
         self.load_loras_calls.append((model, list(loras)))
+        self.event_log.append(("loras", *[lora.filename for lora in loras]))
         return {**model, "loras": [lora.filename for lora in loras]}
 
     def apply_freeu(
@@ -64,6 +71,7 @@ class FakeModelLoader:
         s2: float,
     ) -> StableDiffusionModel:
         self.apply_freeu_calls.append((b1, b2, s1, s2))
+        self.event_log.append(("freeu", b1, b2, s1, s2))
         return {**model, "freeu": True}
 
 
@@ -368,6 +376,8 @@ class TestOrchestrationOrder:
             cfg_scale=4.0,
             seed=123,
             denoise=0.8,
+            width=768,
+            height=1024,
         )
         fx.pipeline.generate(config)
         sc = fx.sampler.sample_calls[0]["config"]
@@ -377,6 +387,8 @@ class TestOrchestrationOrder:
         assert sc.cfg_scale == pytest.approx(4.0)
         assert sc.seed == 123
         assert sc.denoise == pytest.approx(0.8)
+        assert sc.width == 768
+        assert sc.height == 1024
 
 
 # ===========================================================================
@@ -585,7 +597,7 @@ class TestFreeU:
         assert len(fx.model_loader.apply_freeu_calls) == 0
 
     def test_freeu_applied_after_loras(self) -> None:
-        """FreeU must be applied after LoRA loading."""
+        """FreeU must be applied after LoRA loading — verified by event_log order."""
         fx = _make_pipeline()
         loras = [LoRAConfig(filename="detail.safetensors", weight=0.8)]
         config = _make_config(
@@ -597,8 +609,8 @@ class TestFreeU:
             freeu_s2=0.2,
         )
         fx.pipeline.generate(config)
-        assert len(fx.model_loader.load_loras_calls) == 1
-        assert len(fx.model_loader.apply_freeu_calls) == 1
+        event_types = [event[0] for event in fx.model_loader.event_log]
+        assert event_types == ["checkpoint", "loras", "freeu"]
 
 
 # ===========================================================================

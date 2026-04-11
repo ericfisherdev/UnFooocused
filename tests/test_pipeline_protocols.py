@@ -202,6 +202,8 @@ class TestFakeSamplerSatisfiesProtocol:
             cfg_scale=7.0,
             seed=42,
             denoise=1.0,
+            width=1024,
+            height=1024,
         )
         result = fake.sample(
             model=object(),
@@ -468,6 +470,8 @@ class TestDomainModelDataclasses:
             cfg_scale=7.0,
             seed=42,
             denoise=1.0,
+            width=1024,
+            height=1024,
         )
         try:
             config.steps = 30  # type: ignore[misc]
@@ -576,6 +580,9 @@ class _FakeModelLoader:
         return {"unet": None, "clip": None, "vae": None}
 
     def load_loras(self, model: Any, loras: list[Any]) -> Any:
+        return model
+
+    def apply_freeu(self, model: Any, b1: float, b2: float, s1: float, s2: float) -> Any:
         return model
 
 

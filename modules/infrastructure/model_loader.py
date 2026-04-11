@@ -303,6 +303,28 @@ class LdmModelLoader:
                 weight,
             )
 
+    def apply_freeu(
+        self,
+        model: _LoadedModel,
+        b1: float,
+        b2: float,
+        s1: float,
+        s2: float,
+    ) -> _LoadedModel:
+        """Apply FreeU parameters to a loaded model's UNet.
+
+        Args:
+            model: The model to patch with FreeU parameters.
+            b1: FreeU b1 backbone feature scaling factor.
+            b2: FreeU b2 backbone feature scaling factor.
+            s1: FreeU s1 skip feature scaling factor.
+            s2: FreeU s2 skip feature scaling factor.
+
+        Returns:
+            The model with FreeU parameters applied.
+        """
+        raise NotImplementedError("FreeU application requires ldm_patched integration — not yet wired")
+
 
 def _validate_sdxl(model: _LoadedModel, original_path: str) -> None:
     """Validate that a loaded model is SDXL architecture.
