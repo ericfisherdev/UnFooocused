@@ -242,7 +242,7 @@ def _parse_tag_frequency(value) -> list[str]:
                 )
                 words.extend([tag for tag, _ in sorted_tags[:20]])
         return words
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return []
 
 
@@ -260,7 +260,7 @@ def _parse_dataset_dirs(value) -> list[str]:
             if len(parts) > 1:
                 words.append(parts[1].replace("_", " "))
         return words
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return []
 
 
@@ -307,7 +307,7 @@ def _extract_numeric_field(metadata: dict, keys: list[str], as_float: bool = Fal
                 if as_float:
                     return float(value)
                 return int(float(value))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
     return None
 
@@ -328,12 +328,12 @@ def _parse_bucket_resolutions(value) -> str | None:
                 res = json.loads(res_key.replace("(", "[").replace(")", "]"))
                 if isinstance(res, list) and len(res) == 2:
                     resolutions.append(f"{res[0]}x{res[1]}")
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
         if resolutions:
             return ", ".join(sorted(set(resolutions)))
         return None
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
