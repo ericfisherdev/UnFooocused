@@ -100,8 +100,9 @@ class LdmGPUManager:
         Returns:
             A frozen VRAMStats value object.
         """
-        total = self._ldm.get_total_memory()
-        free = self._ldm.get_free_memory()
+        dev = self.get_torch_device()
+        total = self._ldm.get_total_memory(dev=dev)
+        free = self._ldm.get_free_memory(dev=dev)
         used = max(0, total - free)
         return VRAMStats(total_bytes=total, used_bytes=used, free_bytes=free)
 
