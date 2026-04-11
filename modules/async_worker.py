@@ -1,8 +1,9 @@
 """Asynchronous generation pipeline for UnFooocused.
 
 Owns the task queue, task state, and worker that processes generation
-requests. The actual diffusion step is currently a stub (solid-color
-placeholder images) — real backend integration is a future task.
+requests. When a DiffusionPipeline is provided (or STUB_MODE is not set),
+the worker delegates to the real pipeline. When STUB_MODE=true, it falls
+back to solid-color stub images for CI/testing without a GPU.
 
 Domain concepts:
   - AsyncTask: holds all generation parameters, progress yields, and results
@@ -16,11 +17,12 @@ from __future__ import annotations
 import logging
 import os
 import random
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from modules.heartbeat import is_browser_connected
 
 if TYPE_CHECKING:
+    from modules.services.diffusion_pipeline import DiffusionPipeline
     from PIL.Image import Image
 
 logger = logging.getLogger(__name__)
@@ -219,18 +221,28 @@ def _parse_resolution(aspect_ratio: str) -> tuple[int, int]:
 
 
 class Worker:
-    """Processes AsyncTask instances, generating stub images.
+    """Processes AsyncTask instances via DiffusionPipeline or stub fallback.
 
-    The actual diffusion step is a placeholder that creates solid-color
-    images. Real backend integration (ComfyUI, diffusers, etc.) will
-    replace ``_generate_stub_image()`` in a future task.
+    When a ``DiffusionPipeline`` is provided and ``STUB_MODE`` is not set,
+    images are generated via the real pipeline. When ``STUB_MODE=true``
+    (environment variable), the worker falls back to solid-color stub images
+    for CI/testing without a GPU.
 
     Args:
         output_dir: Base directory for saving output images.
+        pipeline: Optional DiffusionPipeline for real generation. When None
+            and STUB_MODE is not set, the worker will still function but
+            without pipeline-driven generation.
     """
 
-    def __init__(self, output_dir: str = "./outputs/") -> None:
+    def __init__(
+        self,
+        output_dir: str = "./outputs/",
+        pipeline: DiffusionPipeline | None = None,
+    ) -> None:
         self.output_dir = output_dir
+        self._pipeline = pipeline
+        self._use_stub = os.environ.get("STUB_MODE", "").lower() == "true"
 
     def process_task(self, task: AsyncTask) -> None:
         """Process a single generation task.
@@ -289,9 +301,10 @@ class Worker:
     ) -> str | None:
         """Generate a single image with progress updates.
 
-        Yields step-level progress events, creates a stub image, and
-        saves it to the output directory.  Returns ``None`` if the task
-        was stopped during step simulation — the caller must not save.
+        Delegates to DiffusionPipeline when available and STUB_MODE is
+        not set. Falls back to stub generation otherwise.
+
+        Returns ``None`` if the task was stopped or an OOM error occurred.
 
         Args:
             task: The parent task (for yielding progress).
@@ -299,9 +312,23 @@ class Worker:
             steps: Number of diffusion steps to simulate.
 
         Returns:
-            Absolute path to the saved image file, or None if stopped.
+            Absolute path to the saved image file, or None if stopped/errored.
         """
-        self._yield_step_progress(task, image_index, steps)
+        if self._use_stub or self._pipeline is None:
+            return self._generate_with_stub(task, image_index, steps)
+        return self._generate_with_pipeline(task, image_index, steps)
+
+    def _generate_with_stub(
+        self,
+        task: AsyncTask,
+        image_index: int,
+        steps: int,
+    ) -> str | None:
+        """Generate a single image using the solid-color stub.
+
+        Used when STUB_MODE=true or no pipeline is available.
+        """
+        self._yield_stub_step_progress(task, image_index, steps)
 
         if task.last_stop == "stop":
             return None
@@ -310,13 +337,75 @@ class Worker:
         image = _generate_stub_image(task.width, task.height, effective_seed)
         return self._save_generated_image(task, image)
 
-    def _yield_step_progress(
+    def _generate_with_pipeline(
+        self,
+        task: AsyncTask,
+        image_index: int,
+        steps: int,
+    ) -> str | None:
+        """Generate a single image using the DiffusionPipeline.
+
+        Bridges pipeline progress callbacks to task.yields preview events.
+        Catches OOM (RuntimeError) and yields an error event instead of crashing.
+        """
+        from modules.services.diffusion_pipeline import PipelineConfig
+
+        config = PipelineConfig.from_task(task)
+        # Override seed for this specific image
+        effective_seed = task.seed if task.disable_seed_increment else task.seed + image_index
+        # PipelineConfig is frozen, so reconstruct with the per-image seed
+        config = PipelineConfig(
+            checkpoint_path=config.checkpoint_path,
+            loras=config.loras,
+            positive_prompt=config.positive_prompt,
+            negative_prompt=config.negative_prompt,
+            sampler_name=config.sampler_name,
+            scheduler=config.scheduler,
+            steps=config.steps,
+            cfg_scale=config.cfg_scale,
+            seed=effective_seed,
+            denoise=config.denoise,
+            image_number=1,
+            clip_skip=config.clip_skip,
+            width=config.width,
+            height=config.height,
+            disable_seed_increment=True,
+            freeu_enabled=config.freeu_enabled,
+            freeu_b1=config.freeu_b1,
+            freeu_b2=config.freeu_b2,
+            freeu_s1=config.freeu_s1,
+            freeu_s2=config.freeu_s2,
+        )
+
+        progress_callback = _make_task_progress_bridge(task, image_index, steps)
+        cancel_check = _make_cancel_check(task)
+
+        try:
+            results = self._pipeline.generate(
+                config=config,
+                progress_callback=progress_callback,
+                cancel_check=cancel_check,
+            )
+        except RuntimeError as exc:
+            error_msg = str(exc)
+            logger.error("Pipeline error during generation: %s", error_msg)
+            task.yields.append(("error", _format_gpu_error(error_msg)))
+            return None
+
+        if not results:
+            return None
+
+        # Convert numpy array to PIL Image and save
+        image = _numpy_to_pil(results[0].image)
+        return self._save_generated_image(task, image)
+
+    def _yield_stub_step_progress(
         self,
         task: AsyncTask,
         image_index: int,
         steps: int,
     ) -> None:
-        """Yield preview events for each diffusion step.
+        """Yield preview events for each stub diffusion step.
 
         Appends ("preview", (percentage, text, None)) to task.yields
         for each step, checking for cancellation between steps.
@@ -372,7 +461,83 @@ class Worker:
 
 
 # ---------------------------------------------------------------------------
-# Stub diffusion — placeholder until real backend integration
+# Pipeline <-> task bridging helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_task_progress_bridge(
+    task: AsyncTask,
+    image_index: int,
+    total_steps: int,
+) -> Any:
+    """Create a progress callback that bridges pipeline steps to task.yields.
+
+    Converts pipeline (image_index, step, total, preview_image) callbacks
+    into ("preview", (percentage, text, preview_image)) task yield entries.
+
+    Args:
+        task: The task to yield progress to.
+        image_index: Zero-based index of the current image in the batch.
+        total_steps: Total steps across all images for percentage calculation.
+    """
+    total_overall = task.image_number * total_steps
+
+    def callback(pipe_image_index: int, step: int, total: int, preview_image: Any) -> None:
+        if task.disable_preview:
+            return
+
+        completed = image_index * total_steps + step
+        percentage = int(completed / total_overall * 100) if total_overall > 0 else 0
+        text = f"Image {image_index + 1}/{task.image_number}, Step {step}/{total}"
+        task.yields.append(("preview", (percentage, text, preview_image)))
+
+    return callback
+
+
+def _make_cancel_check(task: AsyncTask) -> Any:
+    """Create a cancel-check callable that reads task.last_stop.
+
+    Returns:
+        A callable returning True when the task should stop.
+    """
+
+    def check() -> bool:
+        return task.last_stop == "stop"
+
+    return check
+
+
+def _format_gpu_error(error_msg: str) -> str:
+    """Convert a raw GPU/CUDA error message into a user-friendly string.
+
+    Args:
+        error_msg: The raw RuntimeError message string.
+
+    Returns:
+        A user-friendly error description.
+    """
+    lower = error_msg.lower()
+    if "out of memory" in lower or "oom" in lower:
+        return f"GPU out of memory — try a lower resolution or fewer steps. Details: {error_msg}"
+    return f"Generation failed: {error_msg}"
+
+
+def _numpy_to_pil(array: Any) -> Image:
+    """Convert a numpy uint8 (H, W, 3) array to a PIL Image.
+
+    Args:
+        array: Numpy array with shape (H, W, 3) and dtype uint8.
+
+    Returns:
+        A PIL RGB Image.
+    """
+    from PIL import Image
+
+    return Image.fromarray(array, mode="RGB")
+
+
+# ---------------------------------------------------------------------------
+# Stub diffusion — placeholder for CI/testing without GPU (STUB_MODE=true)
 # ---------------------------------------------------------------------------
 
 
@@ -380,8 +545,7 @@ def _generate_stub_image(width: int, height: int, seed: int) -> Image:
     """Generate a solid-color placeholder image.
 
     Uses the seed to deterministically pick an RGB color so tests
-    are reproducible. This function will be replaced by real diffusion
-    in a future task.
+    are reproducible. Active when STUB_MODE=true or no pipeline is provided.
 
     Args:
         width: Image width in pixels.
