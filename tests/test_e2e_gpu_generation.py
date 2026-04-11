@@ -56,6 +56,22 @@ _requires_gpu_deps = pytest.mark.skipif(
     reason="PIL/Pillow and/or numpy not installed",
 )
 
+
+def _has_cuda_gpu() -> bool:
+    """Check if a CUDA-capable GPU is available."""
+    try:
+        import torch
+
+        return torch.cuda.is_available()
+    except ImportError:
+        return False
+
+
+_requires_cuda = pytest.mark.skipif(
+    not _has_cuda_gpu(),
+    reason="No CUDA GPU available — GPU tests require real hardware",
+)
+
 # ---------------------------------------------------------------------------
 # GPU marker — all tests in this module require a GPU
 # ---------------------------------------------------------------------------
@@ -63,6 +79,7 @@ _requires_gpu_deps = pytest.mark.skipif(
 pytestmark = [
     pytest.mark.gpu,
     _requires_gpu_deps,
+    _requires_cuda,
 ]
 
 
