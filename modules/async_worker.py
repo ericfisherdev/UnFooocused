@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 from modules.heartbeat import is_browser_connected
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from modules.services.diffusion_pipeline import DiffusionPipeline
     from PIL.Image import Image
 
@@ -350,32 +352,9 @@ class Worker:
         """
         from modules.services.diffusion_pipeline import PipelineConfig
 
-        config = PipelineConfig.from_task(task)
-        # Override seed for this specific image
+        base_config = PipelineConfig.from_task(task)
         effective_seed = task.seed if task.disable_seed_increment else task.seed + image_index
-        # PipelineConfig is frozen, so reconstruct with the per-image seed
-        config = PipelineConfig(
-            checkpoint_path=config.checkpoint_path,
-            loras=config.loras,
-            positive_prompt=config.positive_prompt,
-            negative_prompt=config.negative_prompt,
-            sampler_name=config.sampler_name,
-            scheduler=config.scheduler,
-            steps=config.steps,
-            cfg_scale=config.cfg_scale,
-            seed=effective_seed,
-            denoise=config.denoise,
-            image_number=1,
-            clip_skip=config.clip_skip,
-            width=config.width,
-            height=config.height,
-            disable_seed_increment=True,
-            freeu_enabled=config.freeu_enabled,
-            freeu_b1=config.freeu_b1,
-            freeu_b2=config.freeu_b2,
-            freeu_s1=config.freeu_s1,
-            freeu_s2=config.freeu_s2,
-        )
+        config = base_config.with_seed(effective_seed)
 
         progress_callback = _make_task_progress_bridge(task, image_index, steps)
         cancel_check = _make_cancel_check(task)
@@ -469,7 +448,7 @@ def _make_task_progress_bridge(
     task: AsyncTask,
     image_index: int,
     total_steps: int,
-) -> Any:
+) -> Callable[..., None]:
     """Create a progress callback that bridges pipeline steps to task.yields.
 
     Converts pipeline (image_index, step, total, preview_image) callbacks
@@ -494,7 +473,7 @@ def _make_task_progress_bridge(
     return callback
 
 
-def _make_cancel_check(task: AsyncTask) -> Any:
+def _make_cancel_check(task: AsyncTask) -> Callable[[], bool]:
     """Create a cancel-check callable that reads task.last_stop.
 
     Returns:
