@@ -36,6 +36,9 @@ include = ["modules*", "ui*", "ldm_patched*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "gpu: requires CUDA-capable GPU and real SDXL model files (skip with -m 'not gpu')",
+]
 
 [tool.ruff]
 target-version = "py314"
