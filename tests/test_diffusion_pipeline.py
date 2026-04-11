@@ -612,6 +612,19 @@ class TestFreeU:
         event_types = [event[0] for event in fx.model_loader.event_log]
         assert event_types == ["checkpoint", "loras", "freeu"]
 
+    def test_freeu_gracefully_skipped_when_not_implemented(self) -> None:
+        """FreeU enabled but loader raises NotImplementedError — generation continues."""
+
+        class UnsupportedFreeULoader(FakeModelLoader):
+            def apply_freeu(self, model: Any, b1: float, b2: float, s1: float, s2: float) -> Any:
+                raise NotImplementedError("FreeU not supported")
+
+        loader = UnsupportedFreeULoader()
+        fx = _make_pipeline(model_loader=loader)
+        config = _make_config(freeu_enabled=True)
+        results = fx.pipeline.generate(config)
+        assert len(results) == 1  # generation completes despite missing FreeU
+
 
 # ===========================================================================
 # AC9: clip_skip applied before text encoding
