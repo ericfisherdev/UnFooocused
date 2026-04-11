@@ -52,7 +52,7 @@ class TestLoadCheckpointNotFound:
         from modules.domain.exceptions import ModelNotFoundError
 
         loader = _make_loader()
-        with pytest.raises(ModelNotFoundError, match="does_not_exist.safetensors"):
+        with pytest.raises(ModelNotFoundError, match=r"does_not_exist\.safetensors"):
             loader.load_checkpoint("does_not_exist.safetensors")
 
     def test_error_is_not_file_not_found_error(self) -> None:
