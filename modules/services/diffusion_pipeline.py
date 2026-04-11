@@ -239,6 +239,8 @@ def compute_switch_step(refiner_switch: float, total_steps: int) -> int:
     Returns:
         Integer step number where the base model stops and refiner begins.
     """
+    if not 0.0 <= refiner_switch <= 1.0:
+        raise ValueError(f"refiner_switch must be between 0.0 and 1.0, got {refiner_switch}")
     return round(refiner_switch * total_steps)
 
 
@@ -412,20 +414,8 @@ class DiffusionPipeline:
         method = RefinerSwapMethod(swap_method)
         switch_step = compute_switch_step(refiner_switch, sampler_config.steps)
 
-        if method is RefinerSwapMethod.JOINT:
-            return self._sampler.sample(
-                model=model,
-                positive=positive,
-                negative=negative,
-                latent=None,
-                config=sampler_config,
-                callback=callback,
-                refiner_model=refiner_model,
-                switch_step=switch_step,
-            )
-
-        # Both 'separate' and 'vae' follow a two-pass pattern:
-        # base pass -> optional transform -> refiner pass with clip separation
+        # All three modes use two-pass scheduling with the computed switch step.
+        # 'joint' and 'separate' pass the latent directly; 'vae' interposes via VAE.
         interpose_fn = self._vae_interpose if method is RefinerSwapMethod.VAE else None
         return self._sample_two_pass(
             base_model=model,
@@ -485,6 +475,32 @@ class DiffusionPipeline:
             callback: Progress callback or None.
             latent_transform: Optional transform applied to base output before refiner.
         """
+        refiner_steps = sampler_config.steps - switch_step
+
+        # Boundary: switch_step >= total means base handles everything
+        if refiner_steps <= 0:
+            return self._sampler.sample(
+                model=base_model,
+                positive=positive,
+                negative=negative,
+                latent=None,
+                config=sampler_config,
+                callback=callback,
+            )
+
+        # Boundary: switch_step <= 0 means refiner handles everything
+        if switch_step <= 0:
+            ref_positive = self._separate_clip(positive, refiner_model)
+            ref_negative = self._separate_clip(negative, refiner_model)
+            return self._sampler.sample(
+                model=refiner_model,
+                positive=ref_positive,
+                negative=ref_negative,
+                latent=None,
+                config=sampler_config,
+                callback=callback,
+            )
+
         # Base model pass — runs for switch_step steps
         base_config = SamplerConfig(
             sampler_name=sampler_config.sampler_name,
@@ -513,7 +529,6 @@ class DiffusionPipeline:
         ref_negative = self._separate_clip(negative, refiner_model)
 
         # Refiner pass — runs for remaining steps
-        refiner_steps = sampler_config.steps - switch_step
         refiner_config = SamplerConfig(
             sampler_name=sampler_config.sampler_name,
             scheduler=sampler_config.scheduler,
