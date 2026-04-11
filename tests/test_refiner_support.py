@@ -94,6 +94,8 @@ class FakeSampler:
         latent: LatentTensor,
         config: SamplerConfig,
         callback: ProgressCallback | None,
+        refiner_model: StableDiffusionModel | None = None,
+        switch_step: int | None = None,
     ) -> LatentTensor:
         self.sample_calls.append(
             {
@@ -102,6 +104,8 @@ class FakeSampler:
                 "negative": negative,
                 "latent": latent,
                 "config": config,
+                "refiner_model": refiner_model,
+                "switch_step": switch_step,
             }
         )
         if callback is not None:
@@ -280,8 +284,9 @@ class TestJointSwapMethod:
             refiner_switch=0.8,
         )
         fx.pipeline.generate(config)
-        # Sampler should be called once with refiner information
         assert len(fx.sampler.sample_calls) == 1
+        call = fx.sampler.sample_calls[0]
+        assert call["refiner_model"] is not None
 
     def test_joint_mode_single_ksampler_call(self) -> None:
         """Joint mode uses exactly one ksampler call (not two)."""
@@ -296,9 +301,16 @@ class TestJointSwapMethod:
 
     def test_joint_mode_switch_step_computed(self) -> None:
         """Joint mode computes switch step from refiner_switch fraction."""
-        from modules.services.diffusion_pipeline import RefinerSwapMethod
-
-        assert RefinerSwapMethod.JOINT.value == "joint"
+        fx = _make_pipeline()
+        config = _make_config(
+            refiner_path="/models/refiner.safetensors",
+            refiner_swap_method="joint",
+            refiner_switch=0.8,
+        )
+        fx.pipeline.generate(config)
+        call = fx.sampler.sample_calls[0]
+        # 0.8 * 30 steps = 24
+        assert call["switch_step"] == round(0.8 * config.steps)
 
 
 # ===========================================================================
@@ -560,7 +572,7 @@ class TestSyntheticRefiner:
         fx.pipeline.generate(config)
         # Base model loaded once; refiner reuses it
         base_loads = [p for p in fx.model_loader.load_checkpoint_calls if p == "/models/sd_xl.safetensors"]
-        assert len(base_loads) >= 1  # at least once
+        assert len(base_loads) == 1  # exactly once — synthetic refiner reuses base
 
 
 # ===========================================================================

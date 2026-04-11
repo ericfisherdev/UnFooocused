@@ -380,6 +380,7 @@ class DiffusionPipeline:
                 negative=negative,
                 swap_method=config.refiner_swap_method,
                 sampler_config=sampler_config,
+                refiner_switch=config.refiner_switch,
                 callback=step_callback,
             )
 
@@ -401,6 +402,7 @@ class DiffusionPipeline:
         negative: Conditioning,
         swap_method: str,
         sampler_config: SamplerConfig,
+        refiner_switch: float,
         callback: Any,
     ) -> LatentTensor:
         """Dispatch to the appropriate swap method or base-only sampling."""
@@ -408,9 +410,19 @@ class DiffusionPipeline:
             return self._sample_base_only(model, positive, negative, sampler_config, callback)
 
         method = RefinerSwapMethod(swap_method)
+        switch_step = compute_switch_step(refiner_switch, sampler_config.steps)
 
         if method is RefinerSwapMethod.JOINT:
-            return self._sample_base_only(model, positive, negative, sampler_config, callback)
+            return self._sampler.sample(
+                model=model,
+                positive=positive,
+                negative=negative,
+                latent=None,
+                config=sampler_config,
+                callback=callback,
+                refiner_model=refiner_model,
+                switch_step=switch_step,
+            )
 
         # Both 'separate' and 'vae' follow a two-pass pattern:
         # base pass -> optional transform -> refiner pass with clip separation
@@ -421,6 +433,7 @@ class DiffusionPipeline:
             positive=positive,
             negative=negative,
             sampler_config=sampler_config,
+            switch_step=switch_step,
             callback=callback,
             latent_transform=interpose_fn,
         )
@@ -450,6 +463,7 @@ class DiffusionPipeline:
         positive: Conditioning,
         negative: Conditioning,
         sampler_config: SamplerConfig,
+        switch_step: int,
         callback: Any,
         latent_transform: VAEInterposeFn | None,
     ) -> LatentTensor:
@@ -458,22 +472,36 @@ class DiffusionPipeline:
         Used by both 'separate' and 'vae' swap methods. The only difference
         is whether a latent_transform (VAE interpose) is applied between passes.
 
+        The base model runs for switch_step steps, then the refiner continues
+        for the remaining steps.
+
         Args:
             base_model: Model for the first sampling pass.
             refiner_model: Model for the second sampling pass.
             positive: Positive CLIP conditioning.
             negative: Negative CLIP conditioning.
             sampler_config: Sampling parameters.
+            switch_step: Step at which base hands off to refiner.
             callback: Progress callback or None.
             latent_transform: Optional transform applied to base output before refiner.
         """
-        # Base model pass
+        # Base model pass — runs for switch_step steps
+        base_config = SamplerConfig(
+            sampler_name=sampler_config.sampler_name,
+            scheduler=sampler_config.scheduler,
+            steps=switch_step,
+            cfg_scale=sampler_config.cfg_scale,
+            seed=sampler_config.seed,
+            denoise=sampler_config.denoise,
+            width=sampler_config.width,
+            height=sampler_config.height,
+        )
         base_latent = self._sampler.sample(
             model=base_model,
             positive=positive,
             negative=negative,
             latent=None,
-            config=sampler_config,
+            config=base_config,
             callback=callback,
         )
 
@@ -484,13 +512,24 @@ class DiffusionPipeline:
         ref_positive = self._separate_clip(positive, refiner_model)
         ref_negative = self._separate_clip(negative, refiner_model)
 
-        # Refiner pass
+        # Refiner pass — runs for remaining steps
+        refiner_steps = sampler_config.steps - switch_step
+        refiner_config = SamplerConfig(
+            sampler_name=sampler_config.sampler_name,
+            scheduler=sampler_config.scheduler,
+            steps=refiner_steps,
+            cfg_scale=sampler_config.cfg_scale,
+            seed=sampler_config.seed,
+            denoise=sampler_config.denoise,
+            width=sampler_config.width,
+            height=sampler_config.height,
+        )
         return self._sampler.sample(
             model=refiner_model,
             positive=ref_positive,
             negative=ref_negative,
             latent=refiner_latent,
-            config=sampler_config,
+            config=refiner_config,
             callback=callback,
         )
 
@@ -546,11 +585,20 @@ class DiffusionPipeline:
         return model
 
     def _load_refiner(self, config: PipelineConfig) -> StableDiffusionModel | None:
-        """Load refiner checkpoint if configured, else return None."""
+        """Load refiner checkpoint if configured, else return None.
+
+        Reuses the already-loaded base model when refiner_path matches
+        checkpoint_path (synthetic refiner) to avoid duplicate VRAM usage.
+        """
         if not config.has_refiner:
             return None
 
         assert config.refiner_path is not None  # guaranteed by has_refiner
+
+        # Synthetic refiner: reuse the cached base model
+        if config.refiner_path == config.checkpoint_path and self._cached_model is not None:
+            return self._cached_model
+
         return self._model_loader.load_checkpoint(config.refiner_path)
 
     @staticmethod
