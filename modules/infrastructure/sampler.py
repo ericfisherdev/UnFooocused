@@ -40,7 +40,7 @@ class PatchSettings:
 
     These settings control sharpness, ADM scaling, ControlNet softness,
     and adaptive CFG behavior during the diffusion process. They map to
-    the per-process patch_settings dict in FwdFooocus's modules/patch.py.
+    the per-process patch_settings dict in modules/patch.py.
 
     Attributes:
         sharpness: Sharpness factor applied during diffusion (default 2.0).
