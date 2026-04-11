@@ -17,7 +17,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 import ldm_patched.modules.latent_formats as latent_formats
 import ldm_patched.modules.utils
@@ -81,6 +81,14 @@ class _LoadedModel:
             self._lora_key_map_clip = model_lora_keys_clip(self.clip.cond_stage_model, self._lora_key_map_clip)
             self._lora_key_map_clip.update({k: k for k in self.clip.cond_stage_model.state_dict()})
 
+    def __repr__(self) -> str:
+        return (
+            f"_LoadedModel(filename={self.filename!r}, "
+            f"has_unet={self.unet is not None}, "
+            f"has_clip={self.clip is not None}, "
+            f"has_vae={self.vae is not None})"
+        )
+
 
 class LdmModelLoader:
     """Concrete ModelLoader adapter backed by ldm_patched.
@@ -108,12 +116,12 @@ class LdmModelLoader:
         resolve_path: Callable[[str], str],
         load_fn: Callable[..., tuple],
         embedding_directory: str,
-        lora_paths: list[str],
+        lora_paths: Sequence[str],
     ) -> None:
         self._resolve_path = resolve_path
         self._load_fn = load_fn
         self._embedding_directory = embedding_directory
-        self._lora_paths = lora_paths
+        self._lora_paths = list(lora_paths)
         self._cache: dict[str, _LoadedModel] = {}
 
     def load_checkpoint(self, path: str) -> _LoadedModel:
@@ -193,7 +201,8 @@ class LdmModelLoader:
 
         loras_to_load = self._resolve_lora_paths(loras)
 
-        model.unet_with_lora = model.unet.clone() if model.unet is not None else None
+        # Clone base models so LoRA patches don't mutate originals
+        model.unet_with_lora = model.unet.clone()
         model.clip_with_lora = model.clip.clone() if model.clip is not None else None
 
         for lora_filename, weight in loras_to_load:
