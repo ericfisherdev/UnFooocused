@@ -21,12 +21,15 @@ if TYPE_CHECKING:
 
 import ldm_patched.modules.latent_formats as latent_formats
 import ldm_patched.modules.utils
+from ldm_patched.contrib.external_freelunch import FreeU_V2
 from ldm_patched.modules.lora import model_lora_keys_clip, model_lora_keys_unet
 from modules.domain.exceptions import ModelNotFoundError, UnsupportedModelError
 from modules.fast_checkpoint import _find_in_folders
 from modules.infrastructure.lora_matching import match_lora
 
 logger = logging.getLogger(__name__)
+
+_freeu_op = FreeU_V2()
 
 
 class _LoadedModel:
@@ -311,7 +314,11 @@ class LdmModelLoader:
         s1: float,
         s2: float,
     ) -> _LoadedModel:
-        """Apply FreeU parameters to a loaded model's UNet.
+        """Apply FreeU V2 parameters to a loaded model's UNet.
+
+        Patches the UNet's output blocks via ldm_patched's FreeU_V2 operation,
+        which modifies skip connections to improve generation quality without
+        additional training.
 
         Args:
             model: The model to patch with FreeU parameters.
@@ -321,9 +328,19 @@ class LdmModelLoader:
             s2: FreeU s2 skip feature scaling factor.
 
         Returns:
-            The model with FreeU parameters applied.
+            The same model instance with unet_with_lora replaced by
+            the FreeU-patched version.
         """
-        raise NotImplementedError("FreeU application requires ldm_patched integration — not yet wired")
+        (patched_unet,) = _freeu_op.patch(
+            model=model.unet_with_lora,
+            b1=b1,
+            b2=b2,
+            s1=s1,
+            s2=s2,
+        )
+        model.unet_with_lora = patched_unet
+        logger.info("Applied FreeU V2 (b1=%.2f, b2=%.2f, s1=%.2f, s2=%.2f)", b1, b2, s1, s2)
+        return model
 
 
 def _validate_sdxl(model: _LoadedModel, original_path: str) -> None:
