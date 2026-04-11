@@ -256,6 +256,34 @@ class VAEDecoder(Protocol):
 
 
 @runtime_checkable
+class LatentPreviewer(Protocol):
+    """Port for generating fast preview images from partial latents during sampling.
+
+    Implementations wrap a lightweight approximate VAE decoder (e.g. VAEApprox)
+    that produces low-quality but fast RGB previews suitable for streaming
+    to the client via WebSocket.
+
+    Errors:
+        preview may raise RuntimeError if the preview model is not loaded.
+    """
+
+    def preview(self, latent: LatentTensor) -> NDArray[Any]:
+        """Generate a preview image from a partial latent tensor.
+
+        Args:
+            latent: A latent tensor (typically from an in-progress sampling step).
+
+        Returns:
+            A numpy array with shape (H, W, 3) and dtype uint8 representing
+            the preview image.
+
+        Raises:
+            RuntimeError: If the preview model is not loaded.
+        """
+        ...
+
+
+@runtime_checkable
 class ProgressCallback(Protocol):
     """Port for receiving sampling progress updates.
 
