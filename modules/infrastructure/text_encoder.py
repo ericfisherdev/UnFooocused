@@ -90,6 +90,17 @@ class LdmTextEncoder:
 
         return [[_concatenate_conds(cond_list), {"pooled_output": pooled_acc}]]
 
+    def set_clip(self, clip: Any) -> None:
+        """Update the CLIP model reference.
+
+        Called after checkpoint or LoRA loading to point the encoder
+        at the current (possibly LoRA-patched) CLIP model.
+
+        Args:
+            clip: An ldm_patched CLIP model instance.
+        """
+        self._clip = clip
+
     def clear_cache(self) -> None:
         """Discard all cached conditioning results.
 
