@@ -300,7 +300,7 @@ class TestWorkerUsesPipeline:
         """Worker calls pipeline.generate() during process_task."""
         from modules.async_worker import AsyncTask
 
-        worker, ml, te, sa, vd = _make_worker_with_fakes(tmp_path)
+        worker, _ml, _te, sa, _vd = _make_worker_with_fakes(tmp_path)
         task = AsyncTask(_minimal_args_list())
         worker.process_task(task)
 
@@ -542,7 +542,7 @@ class TestProgressStreaming:
 
         preview_events = [y for y in task.yields if y[0] == "preview"]
         assert len(preview_events) > 0
-        _flag, (percentage, text, _img) = preview_events[0]
+        _flag, (_percentage, text, _img) = preview_events[0]
         assert "Step" in text or "step" in text.lower()
 
 
