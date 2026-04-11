@@ -342,7 +342,7 @@ def _patched_sampling_function(
     if math.isclose(cond_scale, 1.0) and not (model_options or {}).get("disable_cfg1_optimization", False):
         final_x0 = calc_cond_uncond_batch(model, cond, None, x, timestep, model_options)[0]
         if state.eps_record is not None:
-            state.eps_record = ((x - final_x0) / timestep).cpu()
+            state.eps_record = ((x - final_x0) / (timestep + 1e-8)).cpu()
         return final_x0
 
     positive_x0, negative_x0 = calc_cond_uncond_batch(model, cond, uncond, x, timestep, model_options)
@@ -365,7 +365,7 @@ def _patched_sampling_function(
         final_eps = real_eps
 
     if state.eps_record is not None:
-        state.eps_record = (final_eps / timestep).cpu()
+        state.eps_record = (final_eps / (timestep + 1e-8)).cpu()
 
     return x - final_eps
 
