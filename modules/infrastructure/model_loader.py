@@ -213,14 +213,17 @@ class LdmModelLoader:
 
         loras_to_load = self._resolve_lora_paths(loras)
 
-        # Clone base models so LoRA patches don't mutate originals
-        model.unet_with_lora = model.unet.clone()
-        model.clip_with_lora = model.clip.clone() if model.clip is not None else None
+        # Stage clones locally — only publish onto model after all LoRAs
+        # succeed, so a mid-loop failure leaves the model unchanged.
+        staged_unet = model.unet.clone()
+        staged_clip = model.clip.clone() if model.clip is not None else None
 
         for lora_filename, weight in loras_to_load:
-            self._apply_single_lora(model, lora_filename, weight)
+            self._apply_single_lora(staged_unet, staged_clip, model, lora_filename, weight)
 
-        # Only cache after all LoRAs resolved and applied successfully
+        # All LoRAs applied without error — commit staged state
+        model.unet_with_lora = staged_unet
+        model.clip_with_lora = staged_clip
         model._visited_loras = lora_key
 
         return model
@@ -249,11 +252,18 @@ class LdmModelLoader:
 
     def _apply_single_lora(
         self,
+        staged_unet: Any,
+        staged_clip: Any | None,
         model: _LoadedModel,
         lora_filename: str,
         weight: float,
     ) -> None:
-        """Load and apply a single LoRA file to the model."""
+        """Load and apply a single LoRA file to staged clones.
+
+        Operates on *staged* unet/clip objects rather than on ``model``
+        directly, so the caller can discard them on failure without
+        leaving the model in a partial state.
+        """
         lora_sd = ldm_patched.modules.utils.load_torch_file(lora_filename, safe_load=False)
 
         lora_unet, lora_remaining = match_lora(lora_sd, model._lora_key_map_unet)
@@ -275,8 +285,8 @@ class LdmModelLoader:
                 list(lora_remaining.keys())[:5],
             )
 
-        if model.unet_with_lora is not None and lora_unet:
-            loaded_keys = model.unet_with_lora.add_patches(lora_unet, weight)
+        if staged_unet is not None and lora_unet:
+            loaded_keys = staged_unet.add_patches(lora_unet, weight)
             logger.info(
                 "Applied LoRA %s to UNet with %d keys at weight %.2f",
                 os.path.basename(lora_filename),
@@ -284,8 +294,8 @@ class LdmModelLoader:
                 weight,
             )
 
-        if model.clip_with_lora is not None and lora_clip:
-            loaded_keys = model.clip_with_lora.add_patches(lora_clip, weight)
+        if staged_clip is not None and lora_clip:
+            loaded_keys = staged_clip.add_patches(lora_clip, weight)
             logger.info(
                 "Applied LoRA %s to CLIP with %d keys at weight %.2f",
                 os.path.basename(lora_filename),
