@@ -16,7 +16,12 @@ Acceptance Criteria covered:
 
 from __future__ import annotations
 
+import importlib.util
+
 import pytest
+
+_ldm_deps_available = all(importlib.util.find_spec(mod) is not None for mod in ("torch", "psutil", "scipy"))
+requires_ldm_deps = pytest.mark.skipif(not _ldm_deps_available, reason="torch/psutil/scipy not available")
 
 # ---------------------------------------------------------------------------
 # AC1: PatchSettings correctly applies sharpness via anisotropic filtering
@@ -327,24 +332,25 @@ class TestPerGenerationScoping:
 # ---------------------------------------------------------------------------
 
 
+@requires_ldm_deps
 class TestPatchAll:
     """AC6: patch_all() installs monkey-patches on ldm_patched internals."""
 
     def test_patch_all_replaces_sampling_function(self) -> None:
         """patch_all() replaces ldm_patched.modules.samplers.sampling_function."""
-        # Save originals
         import ldm_patched.modules.samplers as samplers_mod
         from modules.infrastructure import patch_system
 
         original = getattr(samplers_mod, "sampling_function", None)
+        patch_system._patched = False
 
         try:
             patch_system.patch_all()
             assert samplers_mod.sampling_function is not original or original is None
         finally:
-            # Restore if needed
             if original is not None:
                 samplers_mod.sampling_function = original
+            patch_system._patched = False
 
     def test_patch_all_replaces_sdxl_encode_adm(self) -> None:
         """patch_all() replaces SDXL.encode_adm."""
@@ -352,6 +358,7 @@ class TestPatchAll:
         from modules.infrastructure import patch_system
 
         original = getattr(model_base_mod.SDXL, "encode_adm", None)
+        patch_system._patched = False
 
         try:
             patch_system.patch_all()
@@ -359,6 +366,7 @@ class TestPatchAll:
         finally:
             if original is not None:
                 model_base_mod.SDXL.encode_adm = original
+            patch_system._patched = False
 
     def test_patch_all_is_idempotent(self) -> None:
         """Calling patch_all() twice does not break things."""
@@ -366,6 +374,7 @@ class TestPatchAll:
         from modules.infrastructure import patch_system
 
         original = getattr(samplers_mod, "sampling_function", None)
+        patch_system._patched = False
 
         try:
             patch_system.patch_all()
@@ -376,6 +385,7 @@ class TestPatchAll:
         finally:
             if original is not None:
                 samplers_mod.sampling_function = original
+            patch_system._patched = False
 
 
 # ---------------------------------------------------------------------------
@@ -383,8 +393,12 @@ class TestPatchAll:
 # ---------------------------------------------------------------------------
 
 
+@requires_ldm_deps
 class TestAnisotropicFiltering:
-    """AC7: Anisotropic filtering module exists and is functional."""
+    """AC7: Anisotropic filtering module exists and is functional.
+
+    These tests require torch for tensor operations.
+    """
 
     def test_module_importable(self) -> None:
         from modules.infrastructure.anisotropic import adaptive_anisotropic_filter
