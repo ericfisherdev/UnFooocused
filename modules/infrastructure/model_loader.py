@@ -1,0 +1,284 @@
+"""LdmModelLoader — concrete ModelLoader using ldm_patched.
+
+Bridges the domain ModelLoader protocol to ldm_patched's
+load_checkpoint_guess_config and LoRA patching infrastructure.
+All ldm_patched and torch dependencies are confined to this module.
+
+Domain errors raised:
+    ModelNotFoundError — checkpoint or LoRA file not found on disk.
+    UnsupportedModelError — loaded model is not SDXL architecture.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import time
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+import ldm_patched.modules.latent_formats as latent_formats
+import ldm_patched.modules.utils
+from ldm_patched.modules.lora import model_lora_keys_clip, model_lora_keys_unet
+from modules.domain.exceptions import ModelNotFoundError, UnsupportedModelError
+from modules.fast_checkpoint import _find_in_folders
+from modules.infrastructure.lora_matching import match_lora
+
+logger = logging.getLogger(__name__)
+
+
+class _LoadedModel:
+    """Internal model bundle -- wraps unet, clip, vae with LoRA state.
+
+    Provides the same interface as the legacy StableDiffusionModel
+    but without God-object coupling to pipeline orchestration.
+    """
+
+    __slots__ = (
+        "_lora_key_map_clip",
+        "_lora_key_map_unet",
+        "_visited_loras",
+        "clip",
+        "clip_vision",
+        "clip_with_lora",
+        "filename",
+        "unet",
+        "unet_with_lora",
+        "vae",
+        "vae_filename",
+    )
+
+    def __init__(
+        self,
+        *,
+        unet: Any,
+        clip: Any,
+        vae: Any,
+        clip_vision: Any | None,
+        filename: str,
+        vae_filename: str | None,
+    ) -> None:
+        self.unet = unet
+        self.clip = clip
+        self.vae = vae
+        self.clip_vision = clip_vision
+        self.filename = filename
+        self.vae_filename = vae_filename
+        self.unet_with_lora = unet
+        self.clip_with_lora = clip
+        self._visited_loras: str = ""
+
+        self._lora_key_map_unet: dict[str, str] = {}
+        self._lora_key_map_clip: dict[str, str] = {}
+
+        if self.unet is not None:
+            self._lora_key_map_unet = model_lora_keys_unet(self.unet.model, self._lora_key_map_unet)
+            self._lora_key_map_unet.update({k: k for k in self.unet.model.state_dict()})
+
+        if self.clip is not None:
+            self._lora_key_map_clip = model_lora_keys_clip(self.clip.cond_stage_model, self._lora_key_map_clip)
+            self._lora_key_map_clip.update({k: k for k in self.clip.cond_stage_model.state_dict()})
+
+
+class LdmModelLoader:
+    """Concrete ModelLoader adapter backed by ldm_patched.
+
+    Dependencies are injected via constructor:
+        resolve_path: resolves checkpoint name to absolute path
+            (typically fast_checkpoint.resolve_checkpoint_path)
+        load_fn: the actual checkpoint loader
+            (typically ldm_patched.modules.sd.load_checkpoint_guess_config)
+        embedding_directory: path to text embeddings
+        lora_paths: directories to search for LoRA files
+    """
+
+    __slots__ = (
+        "_cache",
+        "_embedding_directory",
+        "_load_fn",
+        "_lora_paths",
+        "_resolve_path",
+    )
+
+    def __init__(
+        self,
+        *,
+        resolve_path: Callable[[str], str],
+        load_fn: Callable[..., tuple],
+        embedding_directory: str,
+        lora_paths: list[str],
+    ) -> None:
+        self._resolve_path = resolve_path
+        self._load_fn = load_fn
+        self._embedding_directory = embedding_directory
+        self._lora_paths = lora_paths
+        self._cache: dict[str, _LoadedModel] = {}
+
+    def load_checkpoint(self, path: str) -> _LoadedModel:
+        """Load an SDXL checkpoint from disk.
+
+        Args:
+            path: Checkpoint filename or absolute path.
+
+        Returns:
+            A loaded model bundle with unet, clip, vae components.
+
+        Raises:
+            ModelNotFoundError: If the checkpoint file does not exist.
+            UnsupportedModelError: If the model is not SDXL architecture.
+        """
+        resolved = self._resolve_path(path)
+
+        if resolved in self._cache:
+            return self._cache[resolved]
+
+        if not os.path.isfile(resolved):
+            raise ModelNotFoundError(f"Checkpoint not found: {path} (resolved to {resolved})")
+
+        start = time.monotonic()
+        try:
+            unet, clip, vae, vae_filename, clip_vision = self._load_fn(
+                resolved,
+                embedding_directory=self._embedding_directory,
+            )
+        except FileNotFoundError as exc:
+            raise ModelNotFoundError(f"Checkpoint not found: {path}") from exc
+
+        elapsed = time.monotonic() - start
+        logger.info("Loaded checkpoint %s in %.1fs", path, elapsed)
+
+        model = _LoadedModel(
+            unet=unet,
+            clip=clip,
+            vae=vae,
+            clip_vision=clip_vision,
+            filename=resolved,
+            vae_filename=vae_filename,
+        )
+
+        _validate_sdxl(model, path)
+
+        self._cache[resolved] = model
+        return model
+
+    def load_loras(
+        self,
+        model: _LoadedModel,
+        loras: list[Any],
+    ) -> _LoadedModel:
+        """Apply LoRA adapters to a loaded model.
+
+        Args:
+            model: Base model to patch.
+            loras: List of LoRAConfig(filename, weight) to apply.
+
+        Returns:
+            The model with LoRA weights applied to unet_with_lora
+            and clip_with_lora.
+
+        Raises:
+            ModelNotFoundError: If a LoRA file cannot be found.
+        """
+        lora_key = str([(cfg.filename, cfg.weight) for cfg in loras])
+
+        if model._visited_loras == lora_key:
+            return model
+
+        model._visited_loras = lora_key
+
+        if model.unet is None:
+            return model
+
+        loras_to_load = self._resolve_lora_paths(loras)
+
+        model.unet_with_lora = model.unet.clone() if model.unet is not None else None
+        model.clip_with_lora = model.clip.clone() if model.clip is not None else None
+
+        for lora_filename, weight in loras_to_load:
+            self._apply_single_lora(model, lora_filename, weight)
+
+        return model
+
+    def _resolve_lora_paths(self, loras: list[Any]) -> list[tuple[str, float]]:
+        """Resolve LoRA filenames to absolute paths."""
+        result: list[tuple[str, float]] = []
+        for lora_config in loras:
+            if lora_config.filename == "None":
+                continue
+
+            if os.path.isfile(lora_config.filename):
+                lora_path = lora_config.filename
+            else:
+                lora_path = _find_in_folders(lora_config.filename, self._lora_paths)
+
+            if not os.path.isfile(lora_path):
+                logger.warning("LoRA file not found: %s", lora_config.filename)
+                continue
+
+            result.append((lora_path, lora_config.weight))
+        return result
+
+    def _apply_single_lora(
+        self,
+        model: _LoadedModel,
+        lora_filename: str,
+        weight: float,
+    ) -> None:
+        """Load and apply a single LoRA file to the model."""
+        lora_sd = ldm_patched.modules.utils.load_torch_file(lora_filename, safe_load=False)
+
+        lora_unet, lora_remaining = match_lora(lora_sd, model._lora_key_map_unet)
+        lora_clip, lora_remaining = match_lora(lora_remaining, model._lora_key_map_clip)
+
+        if len(lora_remaining) > 12:
+            logger.warning(
+                "LoRA %s has %d unmatched keys — possible model mismatch",
+                lora_filename,
+                len(lora_remaining),
+            )
+            return
+
+        if lora_remaining:
+            logger.info(
+                "LoRA %s has %d unmatched keys: %s",
+                lora_filename,
+                len(lora_remaining),
+                list(lora_remaining.keys())[:5],
+            )
+
+        if model.unet_with_lora is not None and lora_unet:
+            loaded_keys = model.unet_with_lora.add_patches(lora_unet, weight)
+            logger.info(
+                "Applied LoRA %s to UNet with %d keys at weight %.2f",
+                os.path.basename(lora_filename),
+                len(loaded_keys),
+                weight,
+            )
+
+        if model.clip_with_lora is not None and lora_clip:
+            loaded_keys = model.clip_with_lora.add_patches(lora_clip, weight)
+            logger.info(
+                "Applied LoRA %s to CLIP with %d keys at weight %.2f",
+                os.path.basename(lora_filename),
+                len(loaded_keys),
+                weight,
+            )
+
+
+def _validate_sdxl(model: _LoadedModel, original_path: str) -> None:
+    """Validate that a loaded model is SDXL architecture.
+
+    Raises:
+        UnsupportedModelError: If the model's latent format is not SDXL.
+    """
+    if model.unet is None:
+        raise UnsupportedModelError(f"Model {original_path} has no UNet — cannot validate architecture")
+
+    latent_format = model.unet.model.latent_format
+    if not isinstance(latent_format, latent_formats.SDXL):
+        format_name = type(latent_format).__name__
+        raise UnsupportedModelError(
+            f"Model {original_path} is {format_name}, not SDXL. Only SDXL models are supported."
+        )

@@ -13,7 +13,7 @@ AC9: Unit tests pass without GPU/model files using fakes
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -79,7 +79,8 @@ class TestLoadCheckpointNotFound:
 class TestLoadCheckpointUnsupportedModel:
     """AC4: Loading a non-SDXL checkpoint raises UnsupportedModelError."""
 
-    def test_non_sdxl_model_raises_unsupported_model_error(self) -> None:
+    @patch("os.path.isfile", return_value=True)
+    def test_non_sdxl_model_raises_unsupported_model_error(self, _mock_isfile: Any) -> None:
         from modules.domain.exceptions import UnsupportedModelError
 
         loader = _make_loader_with_non_sdxl_model()
@@ -95,7 +96,8 @@ class TestLoadCheckpointUnsupportedModel:
 class TestModelCaching:
     """AC6: Same filename returns cached model, avoiding redundant loads."""
 
-    def test_same_filename_returns_cached_model(self) -> None:
+    @patch("os.path.isfile", return_value=True)
+    def test_same_filename_returns_cached_model(self, _mock_isfile: Any) -> None:
         load_fn = MagicMock(return_value=_make_fake_sdxl_load_result())
         loader = _make_loader_with_custom_load(load_fn)
 
@@ -105,7 +107,8 @@ class TestModelCaching:
         assert model1 is model2
         load_fn.assert_called_once()
 
-    def test_different_filename_loads_separately(self) -> None:
+    @patch("os.path.isfile", return_value=True)
+    def test_different_filename_loads_separately(self, _mock_isfile: Any) -> None:
         call_count = 0
 
         def counting_load(path: str, **kwargs: Any) -> Any:
