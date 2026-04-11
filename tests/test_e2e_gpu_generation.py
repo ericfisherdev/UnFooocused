@@ -434,12 +434,14 @@ class TestWebSocketProgressStreaming:
         messages = _collect_ws_messages(client, str(self.output_dir))
 
         preview_messages = [m for m in messages if m.get("type") == "preview"]
-        if len(preview_messages) >= 2:
-            percentages = [m["percentage"] for m in preview_messages]
-            for i in range(1, len(percentages)):
-                assert percentages[i] >= percentages[i - 1], (
-                    f"Percentage decreased: {percentages[i - 1]}% -> {percentages[i]}%"
-                )
+        assert len(preview_messages) >= 2, (
+            f"Expected at least 2 step-level previews for monotonic check, got {len(preview_messages)}"
+        )
+        percentages = [m["percentage"] for m in preview_messages]
+        for i in range(1, len(percentages)):
+            assert percentages[i] >= percentages[i - 1], (
+                f"Percentage decreased: {percentages[i - 1]}% -> {percentages[i]}%"
+            )
 
     def test_at_least_one_preview_has_image(self, client) -> None:
         """AC3: At least one progress message has a non-null preview image."""
@@ -507,10 +509,11 @@ class TestLoRAGeneration:
         _assert_image_is_valid_sdxl(str(png_files[0]))
 
     def test_lora_metadata_in_output(self, client) -> None:
-        """AC7: LoRA name is referenced in generation metadata or logs."""
+        """AC7: LoRA name is referenced in saved PNG metadata."""
+        lora_name = _get_lora()
         body = _generate_request_body(
             prompt="a landscape with mountains",
-            loras=[{"filename": _get_lora(), "weight": 0.6}],
+            loras=[{"filename": lora_name, "weight": 0.6}],
         )
         client.post("/api/generate", json=body)
         _run_worker_with_pipeline(str(self.output_dir))
@@ -520,6 +523,13 @@ class TestLoRAGeneration:
 
         # Image should still be valid SDXL
         _assert_image_is_valid_sdxl(str(png_files[0]))
+
+        # Verify LoRA is referenced in PNG metadata
+        img = Image.open(png_files[0])
+        metadata = img.info.get("parameters", "")
+        assert lora_name in metadata, (
+            f"LoRA '{lora_name}' not found in PNG metadata — pipeline may have ignored the LoRA parameter"
+        )
 
 
 # ===========================================================================
