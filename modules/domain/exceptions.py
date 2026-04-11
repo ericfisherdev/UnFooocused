@@ -20,3 +20,12 @@ class UnsupportedModelError(Exception):
     Currently only SDXL models are supported. Loading a SD1.5 or
     other architecture triggers this error.
     """
+
+
+class GPUMemoryError(Exception):
+    """Raised when a GPU operation fails due to insufficient VRAM.
+
+    Infrastructure adapters must catch CUDA OOM errors and translate
+    them into this domain exception so callers can handle memory
+    pressure without coupling to torch internals.
+    """

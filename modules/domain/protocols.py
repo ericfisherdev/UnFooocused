@@ -302,15 +302,54 @@ class ProgressCallback(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True)
+class VRAMStats:
+    """Value object representing GPU VRAM usage statistics.
+
+    Attributes:
+        total_bytes: Total VRAM available on the device.
+        used_bytes: VRAM currently in use.
+        free_bytes: VRAM currently free.
+    """
+
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
+
+    def __post_init__(self) -> None:
+        if self.total_bytes < 0:
+            raise ValueError(f"total_bytes must be non-negative, got {self.total_bytes}")
+        if self.used_bytes < 0:
+            raise ValueError(f"used_bytes must be non-negative, got {self.used_bytes}")
+        if self.free_bytes < 0:
+            raise ValueError(f"free_bytes must be non-negative, got {self.free_bytes}")
+
+    @property
+    def total_mb(self) -> float:
+        """Total VRAM in megabytes."""
+        return self.total_bytes / (1024 * 1024)
+
+    @property
+    def used_mb(self) -> float:
+        """Used VRAM in megabytes."""
+        return self.used_bytes / (1024 * 1024)
+
+    @property
+    def free_mb(self) -> float:
+        """Free VRAM in megabytes."""
+        return self.free_bytes / (1024 * 1024)
+
+
 @runtime_checkable
 class ModelManager(Protocol):
     """Port for managing GPU resources and model lifecycle.
 
     Implementations wrap ldm_patched's model_management module to
-    provide device queries and memory cleanup.
+    provide device queries, memory cleanup, model loading, and VRAM reporting.
 
     Errors:
-        cleanup_models may log warnings if models cannot be freed.
+        cleanup / cleanup_models may log warnings if models cannot be freed.
+        load_models_to_gpu may raise GPUMemoryError on OOM.
     """
 
     def get_torch_device(self) -> TorchDevice:
@@ -325,5 +364,42 @@ class ModelManager(Protocol):
         """Free GPU memory by unloading cached models.
 
         Call this between generation batches or when memory pressure is high.
+        """
+        ...
+
+    def cleanup(self) -> None:
+        """Full cleanup: unload cached models, empty GPU cache, run GC.
+
+        Broader than cleanup_models — also flushes the CUDA cache and
+        triggers Python garbage collection.
+        """
+        ...
+
+    def load_models_to_gpu(self, models: list[Any]) -> None:
+        """Move specified models to GPU VRAM, offloading others if needed.
+
+        Args:
+            models: List of model patcher objects to load onto the GPU.
+
+        Raises:
+            GPUMemoryError: If GPU runs out of memory during loading.
+        """
+        ...
+
+    def get_vram_stats(self) -> VRAMStats:
+        """Return current VRAM usage statistics.
+
+        Returns:
+            A VRAMStats value object with total, used, and free bytes.
+        """
+        ...
+
+    def should_use_fp16(self) -> bool:
+        """Determine if fp16 inference should be used based on GPU capability.
+
+        Returns True for consumer GPUs where fp32 would cause OOM.
+
+        Returns:
+            True if fp16 is recommended, False for fp32.
         """
         ...

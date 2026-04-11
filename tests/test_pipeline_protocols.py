@@ -623,3 +623,17 @@ class _FakeModelManager:
 
     def cleanup_models(self) -> None:
         pass
+
+    def cleanup(self) -> None:
+        pass
+
+    def load_models_to_gpu(self, models: list[Any]) -> None:
+        pass
+
+    def get_vram_stats(self) -> Any:
+        from modules.domain.protocols import VRAMStats
+
+        return VRAMStats(total_bytes=0, used_bytes=0, free_bytes=0)
+
+    def should_use_fp16(self) -> bool:
+        return False
