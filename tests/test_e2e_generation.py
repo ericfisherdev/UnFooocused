@@ -174,12 +174,21 @@ class TestNoFwdFooocusDependency:
         return imports
 
     def test_no_fwdfooocus_imports_in_source_files(self):
-        """Every .py file in modules/ and ui/ must be free of legacy project imports."""
+        """Every .py file in modules/ and ui/ must be free of legacy project imports.
+
+        Exception: modules/infrastructure/ MAY import from ldm_patched —
+        that's the adapter layer's job (hexagonal architecture boundary).
+        """
         violations: list[str] = []
+        infra_dir = _PROJECT_ROOT / "modules" / "infrastructure"
         for filepath in self._collect_python_files():
+            is_infrastructure = filepath.is_relative_to(infra_dir)
             for imported in self._extract_imports(filepath):
                 for prefix in _FWDFOOOCUS_IMPORT_PREFIXES:
                     if imported == prefix or imported.startswith(prefix + "."):
+                        # Infrastructure adapters may import ldm_patched
+                        if is_infrastructure and prefix == "ldm_patched":
+                            continue
                         rel = filepath.relative_to(_PROJECT_ROOT)
                         violations.append(f"{rel}: imports '{imported}'")
 
