@@ -165,6 +165,8 @@ class PipelineConfig:
             raise ValueError(f"width must be positive, got {self.width}")
         if self.height <= 0:
             raise ValueError(f"height must be positive, got {self.height}")
+        if self.clip_skip < 0:
+            raise ValueError(f"clip_skip must be non-negative, got {self.clip_skip}")
         if self.refiner is not None and not 0.0 <= self.refiner_switch <= 1.0:
             raise ValueError(f"refiner_switch must be between 0.0 and 1.0, got {self.refiner_switch}")
 

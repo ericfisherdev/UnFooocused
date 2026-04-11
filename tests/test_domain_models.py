@@ -382,6 +382,10 @@ class TestPipelineConfigConstruction:
         with pytest.raises(AttributeError):
             config.width = 512  # type: ignore[misc]
 
+    def test_rejects_negative_clip_skip(self) -> None:
+        with pytest.raises(ValueError, match="clip_skip"):
+            _make_pipeline_config(clip_skip=-1)
+
     def test_rejects_refiner_switch_above_one(self) -> None:
         from modules.domain.models import CheckpointMetadata
 
@@ -646,6 +650,7 @@ class TestNoForbiddenImports:
     def test_no_forbidden_imports(self) -> None:
         source = _get_models_source()
         tree = ast.parse(source)
+        base_package = ["modules", "domain"]
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -653,11 +658,21 @@ class TestNoForbiddenImports:
                         assert not alias.name.startswith(forbidden), (
                             f"models.py must not import {forbidden}, found: import {alias.name}"
                         )
-            if isinstance(node, ast.ImportFrom) and node.module is not None:
-                for forbidden in self._FORBIDDEN_MODULES:
-                    assert not node.module.startswith(forbidden), (
-                        f"models.py must not import from {forbidden}, found: from {node.module}"
-                    )
+            if isinstance(node, ast.ImportFrom):
+                prefix = base_package[: -node.level] if node.level else []
+                imported_roots: list[str] = []
+
+                if node.module is not None:
+                    imported_roots.append(".".join([*prefix, node.module]))
+                else:
+                    imported_roots.extend(".".join([*prefix, alias.name]) for alias in node.names)
+
+                for imported in imported_roots:
+                    for forbidden in self._FORBIDDEN_MODULES:
+                        assert not imported.startswith(forbidden), (
+                            f"models.py must not import from {forbidden}, found: from {imported}"
+                        )
+
                 if node.module == "modules":
                     forbidden_children = {"infrastructure", "services"}
                     for alias in node.names:
