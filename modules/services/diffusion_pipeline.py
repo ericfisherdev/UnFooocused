@@ -255,9 +255,12 @@ class DiffusionPipeline:
             model = self._model_loader.load_loras(model, config.loras)
 
         if config.freeu_enabled:
-            model = self._model_loader.apply_freeu(
-                model, config.freeu_b1, config.freeu_b2, config.freeu_s1, config.freeu_s2
-            )
+            try:
+                model = self._model_loader.apply_freeu(
+                    model, config.freeu_b1, config.freeu_b2, config.freeu_s1, config.freeu_s2
+                )
+            except NotImplementedError:
+                logger.warning("FreeU requested but model loader does not support it — skipping")
 
         self._cached_key = cache_key
         self._cached_model = model
