@@ -84,6 +84,18 @@ class _LoadedModel:
             self._lora_key_map_clip = model_lora_keys_clip(self.clip.cond_stage_model, self._lora_key_map_clip)
             self._lora_key_map_clip.update({k: k for k in self.clip.cond_stage_model.state_dict()})
 
+    @property
+    def model(self) -> Any:
+        """Delegate to the inner model from the UNet patcher.
+
+        The LdmSampler and sigma calculator access ``model.model`` to
+        get the underlying diffusion model. This property bridges
+        ``_LoadedModel`` to the model patcher's inner model.
+        """
+        if self.unet_with_lora is not None:
+            return self.unet_with_lora.model
+        return None
+
     def __repr__(self) -> str:
         return (
             f"_LoadedModel(filename={self.filename!r}, "

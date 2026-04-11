@@ -289,6 +289,7 @@ def patch_all() -> None:
     Replaces:
         - ldm_patched.modules.samplers.sampling_function
         - ldm_patched.modules.model_base.SDXL.encode_adm
+        - ldm_patched.ldm.modules.diffusionmodules.openaimodel.UNetModel.forward
 
     This function is idempotent — calling it multiple times installs
     the same patched functions without double-wrapping.
@@ -298,14 +299,20 @@ def patch_all() -> None:
     if _patched:
         return
 
+    import ldm_patched.ldm.modules.diffusionmodules.openaimodel as unet_mod
     import ldm_patched.modules.model_base as model_base_mod
     import ldm_patched.modules.samplers as samplers_mod
 
     samplers_mod.sampling_function = _patched_sampling_function
     model_base_mod.SDXL.encode_adm = _patched_sdxl_encode_adm
 
+    # Store original forward before replacing
+    _original_unet_forward = unet_mod.UNetModel.forward
+    unet_mod.UNetModel._original_forward = _original_unet_forward
+    unet_mod.UNetModel.forward = _patched_unet_forward
+
     _patched = True
-    logger.info("Patch system initialized — sampling_function and SDXL.encode_adm replaced")
+    logger.info("Patch system initialized — sampling_function, SDXL.encode_adm, UNetModel.forward replaced")
 
 
 # ---------------------------------------------------------------------------
@@ -410,3 +417,49 @@ def _patched_sdxl_encode_adm(self: Any, **kwargs: Any) -> Any:
 
     clip_pooled = clip_pooled.to(adm_emphasized)
     return torch.cat((clip_pooled, adm_emphasized, clip_pooled, adm_consistent), dim=1)
+
+
+def _timed_adm(y: Any, timesteps: Any) -> Any:
+    """Split doubled 5632-dim ADM conditioning back to 2816 with timestep blending.
+
+    The patched encode_adm produces [clip_pooled, adm_emphasized, clip_pooled, adm_consistent]
+    (5632 dims). This function blends the emphasized and consistent halves based on
+    the current timestep and adm_scaler_end setting, producing the 2816-dim ADM
+    the UNet actually expects.
+    """
+    import torch
+
+    if not (isinstance(y, torch.Tensor) and int(y.dim()) == 2 and int(y.shape[1]) == 5632):
+        return y
+
+    pid = os.getpid()
+    state = patch_settings_registry.get(pid)
+
+    y_mask = (timesteps > 999.0 * (1.0 - float(state.adm_scaler_end))).to(y)[..., None]
+    y_with_adm = y[..., :2816].clone()
+    y_without_adm = y[..., 2816:].clone()
+    return y_with_adm * y_mask + y_without_adm * (1.0 - y_mask)
+
+
+def _patched_unet_forward(
+    self: Any,
+    x: Any,
+    timesteps: Any = None,
+    context: Any = None,
+    y: Any = None,
+    control: Any = None,
+    transformer_options: dict | None = None,
+    **kwargs: Any,
+) -> Any:
+    """Patched UNet forward that applies timed ADM blending.
+
+    Splits the 5632-dim doubled ADM conditioning back to 2816 before
+    delegating to the original UNet forward method.
+    """
+    if transformer_options is None:
+        transformer_options = {}
+
+    y = _timed_adm(y, timesteps)
+    return self._original_forward(
+        x, timesteps=timesteps, context=context, y=y, control=control, transformer_options=transformer_options, **kwargs
+    )
