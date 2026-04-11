@@ -151,15 +151,22 @@ def _try_lokr_format(
         "t2": f"{prefix}.lokr_t2",
     }
 
+    # Collect present values without marking loaded_keys yet
     values: dict[str, Any] = {}
     for key, name in names.items():
         if name in lora:
             values[key] = lora[name]
-            loaded_keys.add(name)
 
-    has_any = any(k in values for k in ("w1", "w2", "w1a", "w2a"))
-    if not has_any:
+    # Both Kronecker sides must be present (full matrix or factored pair)
+    has_w1 = bool(values.get("w1") is not None or (values.get("w1a") is not None and values.get("w1b") is not None))
+    has_w2 = bool(values.get("w2") is not None or (values.get("w2a") is not None and values.get("w2b") is not None))
+    if not (has_w1 and has_w2):
         return
+
+    # Both sides valid — commit to loaded_keys and patch_dict
+    for key, name in names.items():
+        if key in values:
+            loaded_keys.add(name)
 
     patch_dict[load_key] = (
         "lokr",

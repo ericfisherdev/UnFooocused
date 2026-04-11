@@ -20,10 +20,25 @@ import pytest
 # Skip entire module if no GPU or model files available
 _CHECKPOINT_DIR = os.environ.get("UNFOOOCUSED_TEST_CHECKPOINT_DIR", "/mnt/NovusLocus/ai/focus/models/checkpoints")
 _LORA_DIR = os.environ.get("UNFOOOCUSED_TEST_LORA_DIR", "/mnt/NovusLocus/ai/focus/models/loras")
-_CHECKPOINT_FILE = "juggernautXL_v8Rundiffusion.safetensors"
-_CHECKPOINT_PATH = os.path.join(_CHECKPOINT_DIR, _CHECKPOINT_FILE)
 
-_has_checkpoint = os.path.isfile(_CHECKPOINT_PATH)
+
+def _discover_checkpoint() -> tuple[str, str]:
+    """Resolve checkpoint file: env var > auto-discover > empty (skip)."""
+    env_file = os.environ.get("UNFOOOCUSED_TEST_CHECKPOINT_FILE")
+    if env_file:
+        return env_file, os.path.join(_CHECKPOINT_DIR, env_file)
+
+    if os.path.isdir(_CHECKPOINT_DIR):
+        for name in sorted(os.listdir(_CHECKPOINT_DIR)):
+            if name.endswith(".safetensors"):
+                return name, os.path.join(_CHECKPOINT_DIR, name)
+
+    return "", ""
+
+
+_CHECKPOINT_FILE, _CHECKPOINT_PATH = _discover_checkpoint()
+
+_has_checkpoint = bool(_CHECKPOINT_PATH) and os.path.isfile(_CHECKPOINT_PATH)
 _has_gpu = False
 try:
     import torch
@@ -96,9 +111,13 @@ class TestLoadRealLoras:
         lora_config = LoRAConfig(filename=lora_files[0], weight=0.5)
         patched_model = loader.load_loras(model, [lora_config])
 
-        # After LoRA application, unet_with_lora should differ from base unet
+        # Identity check: patched object is a different clone
         assert patched_model.unet_with_lora is not None
         assert patched_model.unet_with_lora is not model.unet
+
+        # Value check: verify LoRA patches were actually registered,
+        # not just that clone() produced a different object reference.
+        assert patched_model.unet_with_lora.patches, "LoRA application registered no patches — test passes vacuously"
 
     def test_apply_empty_lora_list_returns_model(self) -> None:
         loader = _make_real_loader()
