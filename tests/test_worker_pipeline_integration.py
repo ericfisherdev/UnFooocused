@@ -34,6 +34,22 @@ except ImportError:
 _requires_pil = pytest.mark.skipif(not _HAS_PIL, reason="PIL/Pillow not installed")
 
 
+# ---------------------------------------------------------------------------
+# Module-wide fixture: keep heartbeat fresh so browser-disconnect logic
+# doesn't skip images during long test suite runs.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _keep_heartbeat_alive():
+    """Ensure is_browser_connected() returns True during all tests in this module."""
+    from modules.heartbeat import update_heartbeat
+
+    update_heartbeat()
+    yield
+    update_heartbeat()
+
+
 # ===========================================================================
 # Fakes — same protocol-satisfying fakes as test_diffusion_pipeline.py
 # ===========================================================================

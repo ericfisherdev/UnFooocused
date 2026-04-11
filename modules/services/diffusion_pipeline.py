@@ -85,6 +85,43 @@ class PipelineConfig:
     freeu_s1: float
     freeu_s2: float
 
+    @classmethod
+    def from_task(cls, task: Any) -> PipelineConfig:
+        """Build a PipelineConfig from an AsyncTask.
+
+        Extracts all generation parameters from the task. Sets image_number=1
+        because the Worker iterates over images externally, calling the pipeline
+        once per image.
+
+        Args:
+            task: An AsyncTask instance with parsed generation parameters.
+
+        Returns:
+            A frozen PipelineConfig ready for DiffusionPipeline.generate().
+        """
+        return cls(
+            checkpoint_path=task.base_model_name,
+            loras=[LoRAConfig(filename=name, weight=weight) for name, weight in task.loras],
+            positive_prompt=task.prompt,
+            negative_prompt=task.negative_prompt,
+            sampler_name=task.sampler_name,
+            scheduler=task.scheduler_name,
+            steps=task.effective_steps,
+            cfg_scale=task.cfg_scale,
+            seed=task.seed,
+            denoise=1.0,
+            image_number=1,
+            clip_skip=task.clip_skip,
+            width=task.width,
+            height=task.height,
+            disable_seed_increment=task.disable_seed_increment,
+            freeu_enabled=task.freeu_enabled,
+            freeu_b1=task.freeu_b1,
+            freeu_b2=task.freeu_b2,
+            freeu_s1=task.freeu_s1,
+            freeu_s2=task.freeu_s2,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class GenerationResult:
