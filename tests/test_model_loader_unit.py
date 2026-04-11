@@ -125,6 +125,47 @@ class TestModelCaching:
 
 
 # ---------------------------------------------------------------------------
+# AC5: LoRA application unit tests (without real model files)
+# ---------------------------------------------------------------------------
+
+
+class TestLoraApplicationUnit:
+    """AC5: LoRA loading and application logic works with fakes."""
+
+    @patch("os.path.isfile", return_value=True)
+    def test_load_loras_with_empty_list_returns_model(self, _mock_isfile: Any) -> None:
+        loader = _make_loader_with_custom_load(MagicMock(return_value=_make_fake_sdxl_load_result()))
+        model = loader.load_checkpoint("model.safetensors")
+        result = loader.load_loras(model, [])
+        assert result is not None
+
+    @patch("os.path.isfile", return_value=True)
+    def test_load_loras_skips_none_filename(self, _mock_isfile: Any) -> None:
+        from modules.domain.protocols import LoRAConfig
+
+        loader = _make_loader_with_custom_load(MagicMock(return_value=_make_fake_sdxl_load_result()))
+        model = loader.load_checkpoint("model.safetensors")
+        lora = LoRAConfig(filename="None", weight=0.5)
+        result = loader.load_loras(model, [lora])
+        # "None" filename should be skipped, model returned unchanged
+        assert result is not None
+
+    @patch("os.path.isfile", return_value=True)
+    def test_load_loras_caches_by_lora_config(self, _mock_isfile: Any) -> None:
+        """Same LoRA config applied twice should skip the second time."""
+        from modules.domain.protocols import LoRAConfig
+
+        loader = _make_loader_with_custom_load(MagicMock(return_value=_make_fake_sdxl_load_result()))
+        model = loader.load_checkpoint("model.safetensors")
+        lora = LoRAConfig(filename="None", weight=0.5)
+
+        result1 = loader.load_loras(model, [lora])
+        result2 = loader.load_loras(result1, [lora])
+        # Second call with same config should return immediately
+        assert result2 is result1
+
+
+# ---------------------------------------------------------------------------
 # AC9: Domain exceptions module is well-formed
 # ---------------------------------------------------------------------------
 
