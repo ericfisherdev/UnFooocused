@@ -435,6 +435,16 @@ class TestModelCaching:
         fx.pipeline.generate(config2)
         assert fx.text_encoder.clear_cache_calls >= 1
 
+    def test_freeu_toggle_invalidates_cache(self) -> None:
+        """Toggling FreeU on/off with same checkpoint must reload model."""
+        fx = _make_pipeline()
+        config_with = _make_config(freeu_enabled=True, freeu_b1=1.3, freeu_b2=1.4, freeu_s1=0.9, freeu_s2=0.2)
+        config_without = _make_config(freeu_enabled=False)
+        fx.pipeline.generate(config_with)
+        fx.pipeline.generate(config_without)
+        # Must reload because FreeU state changed
+        assert len(fx.model_loader.load_checkpoint_calls) == 2
+
 
 # ===========================================================================
 # AC5: Multiple images with incrementing seeds
