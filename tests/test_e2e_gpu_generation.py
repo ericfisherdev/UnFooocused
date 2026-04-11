@@ -175,6 +175,42 @@ def _run_worker_with_pipeline(output_dir: str) -> None:
         worker.process_task(task)
 
 
+def _collect_ws_messages(client: Any, output_dir: str) -> list[dict[str, Any]]:
+    """Submit generation, run worker in a thread, collect WebSocket messages.
+
+    Connects to /ws/generation, starts the worker in a background thread,
+    and collects messages until a "finish" event or the deadline expires.
+
+    Returns the list of all received messages (dicts).
+    """
+    import threading
+
+    messages: list[dict[str, Any]] = []
+
+    def run_worker() -> None:
+        _run_worker_with_pipeline(output_dir)
+
+    worker_thread = threading.Thread(target=run_worker, daemon=True)
+
+    with client.websocket_connect("/ws/generation") as ws:
+        worker_thread.start()
+
+        deadline = time.monotonic() + _MAX_GENERATION_SECONDS
+        while time.monotonic() < deadline:
+            try:
+                raw = ws.receive_text()
+                msg = json.loads(raw)
+                messages.append(msg)
+                if msg.get("type") == "finish":
+                    break
+            except Exception:
+                break
+
+        worker_thread.join(timeout=10)
+
+    return messages
+
+
 def _assert_image_is_valid_sdxl(filepath: str, expected_width: int = 1024, expected_height: int = 1024) -> None:
     """Assert that the file at filepath is a valid, non-placeholder SDXL image.
 
@@ -361,77 +397,28 @@ class TestWebSocketProgressStreaming:
 
     def test_websocket_receives_progress_messages(self, client) -> None:
         """AC3: WebSocket streams preview messages during generation."""
-        import threading
-
         from modules.async_worker import async_tasks
 
-        # Submit generation
         client.post("/api/generate", json=_generate_request_body())
         assert len(async_tasks) == 1
 
-        messages: list[dict] = []
-
-        def run_worker():
-            _run_worker_with_pipeline(str(self.output_dir))
-
-        worker_thread = threading.Thread(target=run_worker, daemon=True)
-
-        with client.websocket_connect("/ws/generation") as ws:
-            worker_thread.start()
-
-            # Collect messages until we get a finish event or timeout
-            deadline = time.monotonic() + _MAX_GENERATION_SECONDS
-            while time.monotonic() < deadline:
-                try:
-                    raw = ws.receive_text()
-                    msg = json.loads(raw)
-                    messages.append(msg)
-                    if msg.get("type") == "finish":
-                        break
-                except Exception:
-                    break
-
-            worker_thread.join(timeout=10)
+        messages = _collect_ws_messages(client, str(self.output_dir))
 
         preview_messages = [m for m in messages if m.get("type") == "preview"]
         assert len(preview_messages) > 0, "No preview messages received via WebSocket"
 
     def test_progress_percentages_increase(self, client) -> None:
         """AC3: Progress percentages increase over time."""
-        import threading
-
         from modules.async_worker import async_tasks
 
         client.post("/api/generate", json=_generate_request_body())
         assert len(async_tasks) == 1
 
-        messages: list[dict] = []
-
-        def run_worker():
-            _run_worker_with_pipeline(str(self.output_dir))
-
-        worker_thread = threading.Thread(target=run_worker, daemon=True)
-
-        with client.websocket_connect("/ws/generation") as ws:
-            worker_thread.start()
-
-            deadline = time.monotonic() + _MAX_GENERATION_SECONDS
-            while time.monotonic() < deadline:
-                try:
-                    raw = ws.receive_text()
-                    msg = json.loads(raw)
-                    messages.append(msg)
-                    if msg.get("type") == "finish":
-                        break
-                except Exception:
-                    break
-
-            worker_thread.join(timeout=10)
+        messages = _collect_ws_messages(client, str(self.output_dir))
 
         preview_messages = [m for m in messages if m.get("type") == "preview"]
         if len(preview_messages) >= 2:
             percentages = [m["percentage"] for m in preview_messages]
-            # Percentages should be non-decreasing
             for i in range(1, len(percentages)):
                 assert percentages[i] >= percentages[i - 1], (
                     f"Percentage decreased: {percentages[i - 1]}% -> {percentages[i]}%"
@@ -439,35 +426,12 @@ class TestWebSocketProgressStreaming:
 
     def test_at_least_one_preview_has_image(self, client) -> None:
         """AC3: At least one progress message has a non-null preview image."""
-        import threading
-
         from modules.async_worker import async_tasks
 
         client.post("/api/generate", json=_generate_request_body())
         assert len(async_tasks) == 1
 
-        messages: list[dict] = []
-
-        def run_worker():
-            _run_worker_with_pipeline(str(self.output_dir))
-
-        worker_thread = threading.Thread(target=run_worker, daemon=True)
-
-        with client.websocket_connect("/ws/generation") as ws:
-            worker_thread.start()
-
-            deadline = time.monotonic() + _MAX_GENERATION_SECONDS
-            while time.monotonic() < deadline:
-                try:
-                    raw = ws.receive_text()
-                    msg = json.loads(raw)
-                    messages.append(msg)
-                    if msg.get("type") == "finish":
-                        break
-                except Exception:
-                    break
-
-            worker_thread.join(timeout=10)
+        messages = _collect_ws_messages(client, str(self.output_dir))
 
         preview_messages = [m for m in messages if m.get("type") == "preview"]
         previews_with_images = [m for m in preview_messages if m.get("image") is not None]
@@ -475,35 +439,12 @@ class TestWebSocketProgressStreaming:
 
     def test_finish_message_has_valid_image_path(self, client) -> None:
         """AC1+AC3: Finish message arrives with a valid image path."""
-        import threading
-
         from modules.async_worker import async_tasks
 
         client.post("/api/generate", json=_generate_request_body())
         assert len(async_tasks) == 1
 
-        messages: list[dict] = []
-
-        def run_worker():
-            _run_worker_with_pipeline(str(self.output_dir))
-
-        worker_thread = threading.Thread(target=run_worker, daemon=True)
-
-        with client.websocket_connect("/ws/generation") as ws:
-            worker_thread.start()
-
-            deadline = time.monotonic() + _MAX_GENERATION_SECONDS
-            while time.monotonic() < deadline:
-                try:
-                    raw = ws.receive_text()
-                    msg = json.loads(raw)
-                    messages.append(msg)
-                    if msg.get("type") == "finish":
-                        break
-                except Exception:
-                    break
-
-            worker_thread.join(timeout=10)
+        messages = _collect_ws_messages(client, str(self.output_dir))
 
         finish_messages = [m for m in messages if m.get("type") == "finish"]
         assert len(finish_messages) == 1, f"Expected 1 finish message, got {len(finish_messages)}"
