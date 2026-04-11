@@ -100,18 +100,19 @@ class LdmVAEDecoder:
             RuntimeError: If the VAE is unavailable or GPU memory is exhausted.
         """
         use_tiled = _should_use_tiled(latent, self._tiled_threshold)
+        inner_vae = getattr(vae, "vae", vae)
 
         if use_tiled:
             logger.debug("Using tiled VAE decode (threshold=%d)", self._tiled_threshold)
             image_batch = self._vae_decode_tiled_op.decode(
                 samples=latent,
-                vae=vae,
+                vae=inner_vae,
                 tile_size=_DEFAULT_TILE_SIZE,
             )[0]
         else:
             image_batch = self._vae_decode_op.decode(
                 samples=latent,
-                vae=vae,
+                vae=inner_vae,
             )[0]
 
         return _pytorch_to_numpy(image_batch)
@@ -165,7 +166,10 @@ class LdmLatentPreviewer:
         Raises:
             RuntimeError: If the preview model is not loaded.
         """
-        x_sample = latent.to(self._vae_approx_model.current_type)
+        current_type = getattr(self._vae_approx_model, "current_type", None)
+        if self._vae_approx_model is None or current_type is None:
+            raise RuntimeError("Preview model is not loaded")
+        x_sample = latent.to(current_type)
         x_sample = self._vae_approx_model(x_sample) * 127.5 + 127.5
         x_sample = self._rearrange_fn(x_sample)
         return np.clip(x_sample.cpu().numpy(), 0, 255).astype(np.uint8)
