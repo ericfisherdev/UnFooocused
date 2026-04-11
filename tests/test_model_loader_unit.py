@@ -97,15 +97,18 @@ class TestModelCaching:
     """AC6: Same filename returns cached model, avoiding redundant loads."""
 
     @patch("os.path.isfile", return_value=True)
-    def test_same_filename_returns_cached_model(self, _mock_isfile: Any) -> None:
+    def test_same_filename_uses_cached_load(self, _mock_isfile: Any) -> None:
         load_fn = MagicMock(return_value=_make_fake_sdxl_load_result())
         loader = _make_loader_with_custom_load(load_fn)
 
         model1 = loader.load_checkpoint("model.safetensors")
         model2 = loader.load_checkpoint("model.safetensors")
 
-        assert model1 is model2
+        # load_fn called once — second call served from cache
         load_fn.assert_called_once()
+        # Each call returns a fresh instance so LoRA mutations don't leak
+        assert model1 is not model2
+        assert model1.filename == model2.filename
 
     @patch("os.path.isfile", return_value=True)
     def test_different_filename_loads_separately(self, _mock_isfile: Any) -> None:
@@ -163,6 +166,35 @@ class TestLoraApplicationUnit:
         result2 = loader.load_loras(result1, [lora])
         # Second call with same config should return immediately
         assert result2 is result1
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("modules.infrastructure.model_loader.match_lora")
+    @patch("ldm_patched.modules.utils.load_torch_file")
+    def test_load_loras_caches_after_successful_apply(
+        self,
+        mock_load_torch: Any,
+        mock_match: Any,
+        _mock_isfile: Any,
+    ) -> None:
+        """LoRA caching works on the real apply path (not just skip path)."""
+        from modules.domain.protocols import LoRAConfig
+
+        mock_load_torch.return_value = {"fake.lora_up.weight": "up", "fake.lora_down.weight": "down"}
+        mock_match.return_value = ({}, {})
+
+        loader = _make_loader_with_custom_load(MagicMock(return_value=_make_fake_sdxl_load_result()))
+        loader._lora_paths = ["/fake/loras"]
+        model = loader.load_checkpoint("model.safetensors")
+        lora = LoRAConfig(filename="test_lora.safetensors", weight=0.7)
+
+        result1 = loader.load_loras(model, [lora])
+        assert mock_load_torch.call_count == 1
+
+        # Second call with same config should hit cache
+        result2 = loader.load_loras(result1, [lora])
+        assert result2 is result1
+        # load_torch_file not called again
+        assert mock_load_torch.call_count == 1
 
 
 # ---------------------------------------------------------------------------

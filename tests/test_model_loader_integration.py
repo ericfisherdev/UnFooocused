@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 
 # Skip entire module if no GPU or model files available
-_CHECKPOINT_DIR = "/mnt/NovusLocus/ai/focus/models/checkpoints"
-_LORA_DIR = "/mnt/NovusLocus/ai/focus/models/loras"
+_CHECKPOINT_DIR = os.environ.get("UNFOOOCUSED_TEST_CHECKPOINT_DIR", "/mnt/NovusLocus/ai/focus/models/checkpoints")
+_LORA_DIR = os.environ.get("UNFOOOCUSED_TEST_LORA_DIR", "/mnt/NovusLocus/ai/focus/models/loras")
 _CHECKPOINT_FILE = "juggernautXL_v8Rundiffusion.safetensors"
 _CHECKPOINT_PATH = os.path.join(_CHECKPOINT_DIR, _CHECKPOINT_FILE)
 
@@ -115,11 +115,14 @@ class TestLoadRealLoras:
 class TestCachingWithRealFiles:
     """AC6: Second load of same checkpoint returns cached model."""
 
-    def test_second_load_returns_same_object(self) -> None:
+    def test_second_load_uses_cached_data(self) -> None:
         loader = _make_real_loader()
         model1 = loader.load_checkpoint(_CHECKPOINT_FILE)
         model2 = loader.load_checkpoint(_CHECKPOINT_FILE)
-        assert model1 is model2
+        # Fresh instances backed by same cached base data
+        assert model1 is not model2
+        assert model1.filename == model2.filename
+        assert model1.unet is model2.unet
 
 
 # ---------------------------------------------------------------------------

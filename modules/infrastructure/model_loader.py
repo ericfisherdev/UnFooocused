@@ -131,7 +131,9 @@ class LdmModelLoader:
             path: Checkpoint filename or absolute path.
 
         Returns:
-            A loaded model bundle with unet, clip, vae components.
+            A fresh model bundle with unet, clip, vae components.
+            Each call returns a new ``_LoadedModel`` so LoRA mutations
+            on one caller's instance never affect another's.
 
         Raises:
             ModelNotFoundError: If the checkpoint file does not exist.
@@ -139,11 +141,23 @@ class LdmModelLoader:
         """
         resolved = self._resolve_path(path)
 
-        if resolved in self._cache:
-            return self._cache[resolved]
+        if resolved not in self._cache:
+            self._load_and_cache(resolved, path)
 
+        cached = self._cache[resolved]
+        return _LoadedModel(
+            unet=cached.unet,
+            clip=cached.clip,
+            vae=cached.vae,
+            clip_vision=cached.clip_vision,
+            filename=cached.filename,
+            vae_filename=cached.vae_filename,
+        )
+
+    def _load_and_cache(self, resolved: str, original_path: str) -> None:
+        """Load checkpoint from disk and store immutable base data in cache."""
         if not os.path.isfile(resolved):
-            raise ModelNotFoundError(f"Checkpoint not found: {path} (resolved to {resolved})")
+            raise ModelNotFoundError(f"Checkpoint not found: {original_path} (resolved to {resolved})")
 
         start = time.monotonic()
         try:
@@ -152,10 +166,10 @@ class LdmModelLoader:
                 embedding_directory=self._embedding_directory,
             )
         except FileNotFoundError as exc:
-            raise ModelNotFoundError(f"Checkpoint not found: {path}") from exc
+            raise ModelNotFoundError(f"Checkpoint not found: {original_path}") from exc
 
         elapsed = time.monotonic() - start
-        logger.info("Loaded checkpoint %s in %.1fs", path, elapsed)
+        logger.info("Loaded checkpoint %s in %.1fs", original_path, elapsed)
 
         model = _LoadedModel(
             unet=unet,
@@ -166,10 +180,9 @@ class LdmModelLoader:
             vae_filename=vae_filename,
         )
 
-        _validate_sdxl(model, path)
+        _validate_sdxl(model, original_path)
 
         self._cache[resolved] = model
-        return model
 
     def load_loras(
         self,
@@ -194,9 +207,8 @@ class LdmModelLoader:
         if model._visited_loras == lora_key:
             return model
 
-        model._visited_loras = lora_key
-
         if model.unet is None:
+            model._visited_loras = lora_key
             return model
 
         loras_to_load = self._resolve_lora_paths(loras)
@@ -208,10 +220,17 @@ class LdmModelLoader:
         for lora_filename, weight in loras_to_load:
             self._apply_single_lora(model, lora_filename, weight)
 
+        # Only cache after all LoRAs resolved and applied successfully
+        model._visited_loras = lora_key
+
         return model
 
     def _resolve_lora_paths(self, loras: list[Any]) -> list[tuple[str, float]]:
-        """Resolve LoRA filenames to absolute paths."""
+        """Resolve LoRA filenames to absolute paths.
+
+        Raises:
+            ModelNotFoundError: If any requested LoRA file cannot be found.
+        """
         result: list[tuple[str, float]] = []
         for lora_config in loras:
             if lora_config.filename == "None":
@@ -223,8 +242,7 @@ class LdmModelLoader:
                 lora_path = _find_in_folders(lora_config.filename, self._lora_paths)
 
             if not os.path.isfile(lora_path):
-                logger.warning("LoRA file not found: %s", lora_config.filename)
-                continue
+                raise ModelNotFoundError(f"LoRA file not found: {lora_config.filename}")
 
             result.append((lora_path, lora_config.weight))
         return result

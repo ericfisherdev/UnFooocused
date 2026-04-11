@@ -82,6 +82,9 @@ def _try_lora_format(
     if a_name is None:
         return
 
+    if b_name not in lora:
+        return
+
     mid = None
     if mid_name is not None and mid_name in lora:
         mid = lora[mid_name]
@@ -110,9 +113,15 @@ def _try_loha_format(
     t1_name = f"{prefix}.hada_t1"
     t2_name = f"{prefix}.hada_t2"
 
+    required = {w1b, w2a, w2b}
+    if not required.issubset(lora):
+        return
+
     t1 = None
     t2 = None
     if t1_name in lora:
+        if t2_name not in lora:
+            return
         t1 = lora[t1_name]
         t2 = lora[t2_name]
         loaded_keys.add(t1_name)
@@ -182,6 +191,10 @@ def _try_glora_format(
     a2 = f"{prefix}.a2.weight"
     b1 = f"{prefix}.b1.weight"
     b2 = f"{prefix}.b2.weight"
+
+    required = {a2, b1, b2}
+    if not required.issubset(lora):
+        return
 
     patch_dict[load_key] = ("glora", (lora[a1], lora[a2], lora[b1], lora[b2], alpha))
     loaded_keys.update({a1, a2, b1, b2})
