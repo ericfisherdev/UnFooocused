@@ -69,6 +69,7 @@ class LdmGPUManager:
         self._ldm.cleanup_models()
         self._ldm.soft_empty_cache()
         gc.collect()
+        logger.debug("GPU cleanup complete: models unloaded, cache flushed, GC ran")
 
     def load_models_to_gpu(self, models: list[Any]) -> None:
         """Move specified models to GPU VRAM, offloading others if needed.
@@ -101,7 +102,7 @@ class LdmGPUManager:
         """
         total = self._ldm.get_total_memory()
         free = self._ldm.get_free_memory()
-        used = total - free
+        used = max(0, total - free)
         return VRAMStats(total_bytes=total, used_bytes=used, free_bytes=free)
 
     def should_use_fp16(self) -> bool:
