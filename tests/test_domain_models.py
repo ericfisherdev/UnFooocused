@@ -103,11 +103,10 @@ class TestFrozenDataclassesWithSlots:
 
         cls = getattr(m, class_name)
         params = dataclasses.fields(cls)
-        # Create a minimal instance to test immutability
         instance = _make_minimal_instance(cls)
         first_field = params[0].name
         with pytest.raises(AttributeError):
-            object.__setattr__(instance, first_field, "SHOULD_FAIL")
+            setattr(instance, first_field, "SHOULD_FAIL")
 
 
 # ===========================================================================
