@@ -139,6 +139,14 @@ class TestClipSkipApplied:
         encoder.encode(["test"], clip_skip=-3)
         assert clip.layer_idx == -3
 
+    def test_clip_skip_zero_clamped_to_one(self) -> None:
+        from modules.infrastructure.text_encoder import LdmTextEncoder
+
+        clip = FakeClip()
+        encoder = LdmTextEncoder(clip=clip)
+        encoder.encode(["test"], clip_skip=0)
+        assert clip.layer_idx == -1
+
 
 # ---------------------------------------------------------------------------
 # AC4: Conditioning cache prevents re-encoding identical prompts
@@ -158,6 +166,16 @@ class TestConditioningCache:
         encoder.encode(["cached prompt"], clip_skip=1)
         # Should not have called encode again
         assert clip.encode_call_count == encode_count_after_first
+
+    def test_same_text_different_clip_skip_not_cached(self) -> None:
+        from modules.infrastructure.text_encoder import LdmTextEncoder
+
+        clip = FakeClip()
+        encoder = LdmTextEncoder(clip=clip)
+        encoder.encode(["same prompt"], clip_skip=1)
+        count_after_skip1 = clip.encode_call_count
+        encoder.encode(["same prompt"], clip_skip=2)
+        assert clip.encode_call_count > count_after_skip1
 
     def test_different_text_not_cached(self) -> None:
         from modules.infrastructure.text_encoder import LdmTextEncoder

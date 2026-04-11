@@ -51,7 +51,7 @@ class LdmTextEncoder:
 
     def __init__(self, *, clip: Any) -> None:
         self._clip = clip
-        self._cache: dict[str, tuple[Any, Any]] = {}
+        self._cache: dict[tuple[str, int], tuple[Any, Any]] = {}
 
     def __repr__(self) -> str:
         return f"LdmTextEncoder(has_clip={self._clip is not None}, cache_size={len(self._cache)})"
@@ -77,13 +77,14 @@ class LdmTextEncoder:
         if not texts:
             return None
 
-        self._clip.clip_layer(-abs(clip_skip))
+        effective_skip = max(clip_skip, 1) if clip_skip >= 0 else abs(clip_skip)
+        self._clip.clip_layer(-effective_skip)
 
         cond_list = []
         pooled_acc: Any = 0
 
         for i, text in enumerate(texts):
-            cond, pooled = self._encode_single(text)
+            cond, pooled = self._encode_single(text, effective_skip)
             cond_list.append(cond)
             pooled_acc = pooled if i == 0 else pooled_acc + pooled
 
@@ -96,22 +97,24 @@ class LdmTextEncoder:
         """
         self._cache.clear()
 
-    def _encode_single(self, text: str) -> tuple[Any, Any]:
+    def _encode_single(self, text: str, clip_skip: int) -> tuple[Any, Any]:
         """Encode a single text prompt, using cache when available.
 
         Args:
             text: The text prompt to encode.
+            clip_skip: Effective clip_skip value (already clamped/normalized).
 
         Returns:
             Tuple of (conditioning_tensor, pooled_output).
         """
-        cached = self._cache.get(text)
+        cache_key = (text, clip_skip)
+        cached = self._cache.get(cache_key)
         if cached is not None:
-            logger.debug("[CLIP Cached] %s", text[:80])
+            logger.debug("[CLIP Cached] %d chars, clip_skip=%d", len(text), clip_skip)
             return cached
 
         tokens = self._clip.tokenize(text)
         cond, pooled = self._clip.encode_from_tokens(tokens, return_pooled=True)
-        self._cache[text] = (cond, pooled)
-        logger.debug("[CLIP Encoded] %s", text[:80])
+        self._cache[cache_key] = (cond, pooled)
+        logger.debug("[CLIP Encoded] %d chars, clip_skip=%d", len(text), clip_skip)
         return cond, pooled
