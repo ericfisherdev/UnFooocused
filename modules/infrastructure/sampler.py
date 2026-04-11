@@ -269,7 +269,7 @@ def _bridge_callback(
         A callable matching ldm_patched's callback signature.
     """
 
-    def bridged(step: int, _x0: Any, _x: Any, _total: int, preview_image: Any) -> None:
-        domain_callback(step + 1, total_steps, preview_image)
+    def bridged(step: int, _x0: Any, _x: Any, _total: int, preview_image: Any | None = None) -> None:
+        domain_callback(step + 1, _total, preview_image)
 
     return bridged
