@@ -84,14 +84,14 @@ _DEFAULTS: dict[str, Any] = {
     "metadata_created_by": "",
     "default_describe_apply_prompts_checkbox": True,
     "default_describe_content_type": ["Photograph"],
-    # Base model preset (UNF-59)
-    "base_model_preset": "SDXL",
+    # Base model preset (UNF-59) — populated below from _DEFAULT_BASE_MODEL_PRESET
 }
 
 _VALID_METADATA_SCHEMES: frozenset[str] = frozenset({"fooocus", "a111", "comfy"})
 _VALID_DESCRIBE_CONTENT_TYPES: frozenset[str] = frozenset({"Photograph", "Art/Anime"})
 _VALID_BASE_MODEL_PRESETS: frozenset[str] = frozenset({"SDXL", "Pony", "Illustrious"})
 _DEFAULT_BASE_MODEL_PRESET: str = "SDXL"
+_DEFAULTS["base_model_preset"] = _DEFAULT_BASE_MODEL_PRESET
 _UI_ADVANCED_BOOL_KEYS: tuple[str, ...] = (
     "default_advanced_checkbox",
     "default_developer_debug_mode_checkbox",

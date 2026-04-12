@@ -1258,22 +1258,17 @@ class TestBaseModelPresetConfig:
         result = load_config(config_path=self._write(tmp_path, {"base_model_preset": preset}))
         assert result["base_model_preset"] == preset
 
-    def test_invalid_preset_warns_and_falls_back(self, tmp_path, caplog):
+    @pytest.mark.parametrize(
+        "bad_preset",
+        ["SD15", 42, None, ["SDXL"]],
+        ids=["unknown_string", "int", "none", "list"],
+    )
+    def test_invalid_preset_warns_and_falls_back(self, tmp_path, caplog, bad_preset):
         import logging
 
         from modules.config import load_config
 
         with caplog.at_level(logging.WARNING, logger="modules.config"):
-            result = load_config(config_path=self._write(tmp_path, {"base_model_preset": "SD15"}))
-        assert result["base_model_preset"] == "SDXL"
-        assert any("base_model_preset" in rec.message for rec in caplog.records)
-
-    def test_non_string_preset_warns_and_falls_back(self, tmp_path, caplog):
-        import logging
-
-        from modules.config import load_config
-
-        with caplog.at_level(logging.WARNING, logger="modules.config"):
-            result = load_config(config_path=self._write(tmp_path, {"base_model_preset": 42}))
+            result = load_config(config_path=self._write(tmp_path, {"base_model_preset": bad_preset}))
         assert result["base_model_preset"] == "SDXL"
         assert any("base_model_preset" in rec.message for rec in caplog.records)
