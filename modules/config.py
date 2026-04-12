@@ -16,7 +16,11 @@ import shutil
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 from modules.flags import SAMPLER_NAMES, SCHEDULER_NAMES, clip_skip_max, sdxl_aspect_ratios
 
@@ -107,6 +111,16 @@ _VALID_DESCRIBE_CONTENT_TYPES: frozenset[str] = frozenset({"Photograph", "Art/An
 _VALID_BASE_MODEL_PRESETS: frozenset[str] = frozenset({"SDXL", "Pony", "Illustrious"})
 _DEFAULT_BASE_MODEL_PRESET: str = "SDXL"
 _DEFAULTS["base_model_preset"] = _DEFAULT_BASE_MODEL_PRESET
+
+# Download/cache maps (UNF-60): dict[filename, url]
+_DOWNLOAD_CONFIG_KEYS: tuple[str, ...] = (
+    "checkpoint_downloads",
+    "lora_downloads",
+    "embeddings_downloads",
+    "vae_downloads",
+)
+for _dl_key in _DOWNLOAD_CONFIG_KEYS:
+    _DEFAULTS[_dl_key] = {}
 _UI_ADVANCED_BOOL_KEYS: tuple[str, ...] = (
     "default_advanced_checkbox",
     "default_developer_debug_mode_checkbox",
@@ -253,6 +267,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     _validate_ui_metadata_config(config)
     _validate_base_model_preset_config(config)
     _validate_directory_paths(config)
+    _validate_download_config(config)
 
 
 def _validate_directory_paths(config: dict[str, Any]) -> None:
@@ -503,6 +518,46 @@ def _validate_ui_metadata_config(config: dict[str, Any]) -> None:
             )
 
 
+def _validate_download_config(config: dict[str, Any]) -> None:
+    """Validate download/cache map config keys (UNF-60).
+
+    Each of ``checkpoint_downloads``, ``lora_downloads``, ``embeddings_downloads``,
+    ``vae_downloads`` must be a ``dict[str, str]`` mapping filename to download URL.
+    """
+    for key in _DOWNLOAD_CONFIG_KEYS:
+        mapping = config.get(key)
+        if not isinstance(mapping, dict):
+            raise ValueError(f"config.txt: {key} must be a mapping of filename to URL, got {type(mapping).__name__}")
+        for filename, url in mapping.items():
+            if not isinstance(filename, str):
+                raise ValueError(f"config.txt: {key} keys must be strings, got {filename!r}")
+            if not isinstance(url, str):
+                raise ValueError(f"config.txt: {key}[{filename!r}] URL must be a string, got {url!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class PendingDownload:
+    """A file queued for download on startup (UNF-60)."""
+
+    filename: str
+    url: str
+    target_dir: Path
+
+
+def plan_missing_downloads(downloads: Mapping[str, str], target_dir: str | Path) -> tuple[PendingDownload, ...]:
+    """Return downloads whose target file does not yet exist.
+
+    Pure function: checks ``target_dir / filename`` for each entry in
+    *downloads* and yields a ``PendingDownload`` for every missing file.
+    """
+    target = Path(target_dir)
+    return tuple(
+        PendingDownload(filename=name, url=url, target_dir=target)
+        for name, url in downloads.items()
+        if not (target / name).is_file()
+    )
+
+
 def _validate_base_model_preset_config(config: dict[str, Any]) -> None:
     """Validate base_model_preset with warn+fallback semantics (UNF-59).
 
@@ -650,6 +705,12 @@ class AppConfig:
     # Base model preset (UNF-59)
     base_model_preset: str
 
+    # Download/cache maps (UNF-60) — read-only views over dict[filename, url]
+    checkpoint_downloads: Mapping[str, str]
+    lora_downloads: Mapping[str, str]
+    embeddings_downloads: Mapping[str, str]
+    vae_downloads: Mapping[str, str]
+
     # Discovered model files
     model_filenames: tuple[str, ...]
     lora_filenames: tuple[str, ...]
@@ -731,6 +792,10 @@ class AppConfig:
             default_describe_apply_prompts_checkbox=raw["default_describe_apply_prompts_checkbox"],
             default_describe_content_type=tuple(raw["default_describe_content_type"]),
             base_model_preset=raw["base_model_preset"],
+            checkpoint_downloads=MappingProxyType(dict(raw["checkpoint_downloads"])),
+            lora_downloads=MappingProxyType(dict(raw["lora_downloads"])),
+            embeddings_downloads=MappingProxyType(dict(raw["embeddings_downloads"])),
+            vae_downloads=MappingProxyType(dict(raw["vae_downloads"])),
             model_filenames=tuple(_discover_files(paths_checkpoints)),
             lora_filenames=tuple(_discover_files(paths_loras)),
         )
