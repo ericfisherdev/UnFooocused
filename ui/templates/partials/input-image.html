@@ -15,35 +15,46 @@
 
     <div class="input-image__tabs" role="tablist" aria-label="Input Image modes">
         <button type="button"
+                id="input-image-tab-uov-btn"
                 class="input-image__tab"
                 :class="{ 'input-image__tab--active': activeTab === 'uov' }"
                 role="tab"
                 :aria-selected="(activeTab === 'uov').toString()"
+                aria-controls="input-image-panel-uov"
                 data-testid="input-image-tab-uov"
                 @click="activeTab = 'uov'">
             Upscale or Variation
         </button>
         <button type="button"
+                id="input-image-tab-ip-btn"
                 class="input-image__tab"
                 :class="{ 'input-image__tab--active': activeTab === 'ip' }"
                 role="tab"
                 :aria-selected="(activeTab === 'ip').toString()"
+                aria-controls="input-image-panel-ip"
                 data-testid="input-image-tab-ip"
                 @click="activeTab = 'ip'">
             Image Prompt
         </button>
         <button type="button"
+                id="input-image-tab-inpaint-btn"
                 class="input-image__tab"
                 :class="{ 'input-image__tab--active': activeTab === 'inpaint' }"
                 role="tab"
                 :aria-selected="(activeTab === 'inpaint').toString()"
+                aria-controls="input-image-panel-inpaint"
                 data-testid="input-image-tab-inpaint"
                 @click="activeTab = 'inpaint'">
             Inpaint or Outpaint
         </button>
     </div>
 
-    <div class="input-image__panel" role="tabpanel" x-show="activeTab === 'uov'" x-cloak>
+    <div id="input-image-panel-uov"
+         class="input-image__panel"
+         role="tabpanel"
+         aria-labelledby="input-image-tab-uov-btn"
+         x-show="activeTab === 'uov'"
+         x-cloak>
         <label class="input-image__upload text-label">
             <span>Upload image for upscale or variation</span>
             <input type="file"
@@ -57,11 +68,21 @@
              alt="Upscale or variation source image">
     </div>
 
-    <div class="input-image__panel" role="tabpanel" x-show="activeTab === 'ip'" x-cloak>
+    <div id="input-image-panel-ip"
+         class="input-image__panel"
+         role="tabpanel"
+         aria-labelledby="input-image-tab-ip-btn"
+         x-show="activeTab === 'ip'"
+         x-cloak>
         <p class="text-body-muted">Image Prompt controls will be added in a later phase.</p>
     </div>
 
-    <div class="input-image__panel" role="tabpanel" x-show="activeTab === 'inpaint'" x-cloak>
+    <div id="input-image-panel-inpaint"
+         class="input-image__panel"
+         role="tabpanel"
+         aria-labelledby="input-image-tab-inpaint-btn"
+         x-show="activeTab === 'inpaint'"
+         x-cloak>
         <label class="input-image__upload text-label">
             <span>Upload image to inpaint</span>
             <input type="file"
