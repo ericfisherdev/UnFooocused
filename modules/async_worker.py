@@ -268,6 +268,10 @@ class Worker:
 
     def _run_generation(self, task: AsyncTask) -> None:
         """Execute the generation loop for a task."""
+        # Resolve negative seeds to valid random seeds
+        if task.seed < 0:
+            task.seed = random.randint(0, 2**31 - 1)  # noqa: S311  # nosec B311
+
         logger.info("Loading checkpoint: %s", task.base_model_name)
 
         for lora_name, lora_weight in task.loras:

@@ -86,7 +86,6 @@ def _configure_ldm_args() -> None:
 
     args.disable_async_cuda_allocation = True
     args.always_offload_from_vram = True
-    args.vae_in_cpu = True
 
 
 def _build_pipeline_from_ldm() -> Any:
