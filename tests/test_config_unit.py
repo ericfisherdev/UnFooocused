@@ -965,3 +965,163 @@ class TestImageGenDefaultsConfig:
 
         with pytest.raises(ValueError, match="default_output_format"):
             load_config(config_path=self._write(tmp_path, {"default_output_format": 123}))
+
+
+class TestVaePerformanceConfig:
+    """UNF-56: VAE and performance config options."""
+
+    def _write(self, tmp_path, payload):
+        (tmp_path / "config.txt").write_text(json.dumps(payload))
+        return tmp_path / "config.txt"
+
+    def test_default_vae_key_present_with_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert "default_vae" in result
+        assert isinstance(result["default_vae"], str)
+
+    def test_default_vae_reads_from_file(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_vae": "custom_vae.safetensors"}))
+        assert result["default_vae"] == "custom_vae.safetensors"
+
+    def test_raises_when_default_vae_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_vae"):
+            load_config(config_path=self._write(tmp_path, {"default_vae": 42}))
+
+    def test_default_performance_accepts_speed(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_performance": "Speed"}))
+        assert result["default_performance"] == "Speed"
+
+    def test_default_performance_accepts_quality(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_performance": "Quality"}))
+        assert result["default_performance"] == "Quality"
+
+    def test_default_performance_accepts_extreme_speed(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_performance": "Extreme Speed"}))
+        assert result["default_performance"] == "Extreme Speed"
+
+    def test_raises_when_default_performance_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_performance"):
+            load_config(config_path=self._write(tmp_path, {"default_performance": "Ludicrous"}))
+
+    def test_raises_when_default_performance_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_performance"):
+            load_config(config_path=self._write(tmp_path, {"default_performance": 99}))
+
+    def test_overwrite_step_defaults_to_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_overwrite_step"] == -1
+
+    def test_overwrite_switch_defaults_to_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_overwrite_switch"] == -1
+
+    def test_overwrite_upscale_defaults_to_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_overwrite_upscale"] == -1
+
+    def test_overwrite_step_accepts_positive_int(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_overwrite_step": 50}))
+        assert result["default_overwrite_step"] == 50
+
+    def test_overwrite_step_accepts_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_overwrite_step": -1}))
+        assert result["default_overwrite_step"] == -1
+
+    def test_raises_when_overwrite_step_below_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_step"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_step": -5}))
+
+    def test_raises_when_overwrite_step_not_int(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_step"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_step": 5.5}))
+
+    def test_raises_when_overwrite_step_is_bool(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_step"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_step": True}))
+
+    def test_overwrite_switch_accepts_positive_int(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_overwrite_switch": 20}))
+        assert result["default_overwrite_switch"] == 20
+
+    def test_raises_when_overwrite_switch_below_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_switch"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_switch": -10}))
+
+    def test_raises_when_overwrite_switch_not_int(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_switch"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_switch": "auto"}))
+
+    def test_overwrite_upscale_accepts_positive_float(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_overwrite_upscale": 0.75}))
+        assert result["default_overwrite_upscale"] == pytest.approx(0.75)
+
+    def test_overwrite_upscale_accepts_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_overwrite_upscale": -1}))
+        assert result["default_overwrite_upscale"] == -1
+
+    def test_raises_when_overwrite_upscale_not_numeric(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_upscale"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_upscale": "strong"}))
+
+    def test_raises_when_overwrite_upscale_is_bool(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_upscale"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_upscale": True}))
+
+    def test_raises_when_overwrite_upscale_below_minus_one(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_overwrite_upscale"):
+            load_config(config_path=self._write(tmp_path, {"default_overwrite_upscale": -2.0}))
+
+    def test_raises_when_overwrite_upscale_nan(self, tmp_path):
+        from modules.config import load_config
+
+        (tmp_path / "config.txt").write_text(json.dumps({"default_overwrite_upscale": float("nan")}))
+        with pytest.raises(ValueError, match="default_overwrite_upscale"):
+            load_config(config_path=tmp_path / "config.txt")
