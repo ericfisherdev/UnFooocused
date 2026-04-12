@@ -181,7 +181,14 @@ def _apply_path_env_overrides(config: dict[str, Any]) -> None:
 def _warn_missing_paths(config: dict[str, Any]) -> None:
     for key in _NEW_PATH_KEYS:
         value = config.get(key)
-        if isinstance(value, str) and value and not Path(value).is_dir():
+        if not isinstance(value, str) or not value:
+            continue
+        try:
+            expanded = Path(value).expanduser()
+        except OSError, RuntimeError:
+            logger.warning("config.txt: %s=%r could not be expanded", key, value)
+            continue
+        if not expanded.is_dir():
             logger.warning("config.txt: %s=%r does not exist on disk", key, value)
 
 
@@ -207,13 +214,18 @@ def cleanup_temp_path(temp_path: str) -> None:
     if not _is_safe_temp_path(temp_path):
         logger.error("refusing to clean temp_path=%r: unsafe or destructive value", temp_path)
         return
-    path = Path(temp_path)
+    path = Path(temp_path).expanduser()
     if path.is_symlink():
         logger.warning("refusing to clean temp_path=%r because it is a symlink", temp_path)
         return
     if not path.is_dir():
         return
-    for child in path.iterdir():
+    try:
+        children = tuple(path.iterdir())
+    except OSError as exc:
+        logger.warning("failed to enumerate temp_path=%r: %s", temp_path, exc)
+        return
+    for child in children:
         try:
             if child.is_dir() and not child.is_symlink():
                 shutil.rmtree(child)
