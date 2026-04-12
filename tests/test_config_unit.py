@@ -13,6 +13,7 @@ import json
 import os
 
 import pytest
+from modules.flags import Performance
 
 
 class TestLoadConfigDefaults:
@@ -993,23 +994,12 @@ class TestVaePerformanceConfig:
         with pytest.raises(ValueError, match="default_vae"):
             load_config(config_path=self._write(tmp_path, {"default_vae": 42}))
 
-    def test_default_performance_accepts_speed(self, tmp_path):
+    @pytest.mark.parametrize("value", list(Performance.values()))
+    def test_default_performance_accepts_enum_values(self, tmp_path, value):
         from modules.config import load_config
 
-        result = load_config(config_path=self._write(tmp_path, {"default_performance": "Speed"}))
-        assert result["default_performance"] == "Speed"
-
-    def test_default_performance_accepts_quality(self, tmp_path):
-        from modules.config import load_config
-
-        result = load_config(config_path=self._write(tmp_path, {"default_performance": "Quality"}))
-        assert result["default_performance"] == "Quality"
-
-    def test_default_performance_accepts_extreme_speed(self, tmp_path):
-        from modules.config import load_config
-
-        result = load_config(config_path=self._write(tmp_path, {"default_performance": "Extreme Speed"}))
-        assert result["default_performance"] == "Extreme Speed"
+        result = load_config(config_path=self._write(tmp_path, {"default_performance": value}))
+        assert result["default_performance"] == value
 
     def test_raises_when_default_performance_invalid(self, tmp_path):
         from modules.config import load_config
