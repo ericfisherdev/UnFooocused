@@ -531,7 +531,7 @@ def _make_cancel_check(task: AsyncTask) -> Callable[[], bool]:
     return check
 
 
-_UNFOOOCUSED_VERSION = "UnFooocused v0.1.0"
+_UNFOOOCUSED_VERSION = "UnFooocused"
 
 
 def _build_fooocus_metadata(
