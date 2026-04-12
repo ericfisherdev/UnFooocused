@@ -83,6 +83,13 @@ class InpaintWorker:
     interested_fill: NDArray[np.uint8] = field(init=False)
 
     def __post_init__(self) -> None:
+        if self.mask.ndim != 2:
+            raise ValueError(f"mask must be 2D (H, W), got shape {self.mask.shape}")
+        if self.image.shape[:2] != self.mask.shape:
+            raise ValueError(
+                f"image and mask spatial dimensions must match: image={self.image.shape[:2]}, mask={self.mask.shape}"
+            )
+
         initial = compute_initial_bounds(self.mask > 0)
         area = expand_bounds_to_min_ratio(initial, self.mask.shape, k=self.k)
         self.interested_area = area
