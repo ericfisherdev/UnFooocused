@@ -583,3 +583,15 @@ class TestSamplingConfigValidation:
 
         with pytest.raises(ValueError, match=key):
             load_config(config_path=tmp_path / "config.txt")
+
+    @pytest.mark.parametrize(
+        "key",
+        ["default_cfg_tsnr", "default_cfg_scale", "default_sample_sharpness"],
+    )
+    def test_rejects_huge_integer_numeric_fields(self, tmp_path, key):
+        huge = "1" + "0" * 400
+        (tmp_path / "config.txt").write_text("{" + f'"{key}": {huge}' + "}")
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=tmp_path / "config.txt")
