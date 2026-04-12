@@ -39,6 +39,7 @@ REQUIRED_FIELDS = {
     "default_loras_min_weight": (int, float),
     "default_loras_max_weight": (int, float),
     "default_max_lora_number": int,
+    "base_model_preset": str,
 }
 
 

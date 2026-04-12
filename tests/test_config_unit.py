@@ -1236,3 +1236,44 @@ class TestUiMetadataAdvancedConfig:
 
         with pytest.raises(ValueError, match="default_describe_content_type"):
             load_config(config_path=self._write(tmp_path, {"default_describe_content_type": [1]}))
+
+
+class TestBaseModelPresetConfig:
+    """UNF-59: base_model_preset config (warn+fallback semantics)."""
+
+    def _write(self, tmp_path, payload):
+        (tmp_path / "config.txt").write_text(json.dumps(payload))
+        return tmp_path / "config.txt"
+
+    def test_default_value(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "missing.txt")
+        assert result["base_model_preset"] == "SDXL"
+
+    @pytest.mark.parametrize("preset", ["SDXL", "Pony", "Illustrious"])
+    def test_valid_preset_accepted(self, tmp_path, preset):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"base_model_preset": preset}))
+        assert result["base_model_preset"] == preset
+
+    def test_invalid_preset_warns_and_falls_back(self, tmp_path, caplog):
+        import logging
+
+        from modules.config import load_config
+
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            result = load_config(config_path=self._write(tmp_path, {"base_model_preset": "SD15"}))
+        assert result["base_model_preset"] == "SDXL"
+        assert any("base_model_preset" in rec.message for rec in caplog.records)
+
+    def test_non_string_preset_warns_and_falls_back(self, tmp_path, caplog):
+        import logging
+
+        from modules.config import load_config
+
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            result = load_config(config_path=self._write(tmp_path, {"base_model_preset": 42}))
+        assert result["base_model_preset"] == "SDXL"
+        assert any("base_model_preset" in rec.message for rec in caplog.records)
