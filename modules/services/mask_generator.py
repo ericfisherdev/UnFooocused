@@ -9,7 +9,7 @@ real networks or touching disk.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from modules.domain.mask_generation import (
     MaskGenerationRequest,
@@ -43,6 +43,6 @@ class MaskGenerator:
 
     def generate(self, request: MaskGenerationRequest) -> NDArray[np.bool_]:
         if request.model is MaskModel.SAM:
-            assert request.sam_prompt is not None
-            return self.sam.segment(request.image, request.sam_prompt)
+            prompt = cast("SamPrompt", request.sam_prompt)
+            return self.sam.segment(request.image, prompt)
         return self.rembg.segment(request.image, request.model.value)
