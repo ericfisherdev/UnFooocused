@@ -411,6 +411,109 @@ class TestWorkerOutputSaving:
 
 
 # ---------------------------------------------------------------------------
+# HTML log writing (UNF-47)
+# ---------------------------------------------------------------------------
+
+
+@_requires_pil
+class TestWorkerHtmlLogWriting:
+    """Worker writes log.html entries after each image save (UNF-47)."""
+
+    def test_log_html_created_after_generation(self, tmp_path):
+        """AC1: After generation, a log.html file exists in the date-based output directory."""
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        # Find the date-based subdirectory
+        subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        assert len(subdirs) == 1
+        assert (subdirs[0] / "log.html").exists()
+
+    def test_log_html_contains_prompt_metadata(self, tmp_path):
+        """AC2: Log entries contain metadata fields matching FwdFooocus format."""
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        content = (subdirs[0] / "log.html").read_text(encoding="utf-8")
+        assert "a beautiful sunset" in content  # the prompt from _minimal_args_list
+
+    def test_log_html_contains_all_fooocus_fields(self, tmp_path):
+        """AC2: All FwdFooocus-format metadata fields are present."""
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        content = (subdirs[0] / "log.html").read_text(encoding="utf-8")
+        for label in (
+            "Prompt",
+            "Negative Prompt",
+            "Steps",
+            "Resolution",
+            "Guidance Scale",
+            "Sharpness",
+            "ADM Guidance",
+            "Base Model",
+            "Refiner Model",
+            "Refiner Switch",
+            "Sampler",
+            "Scheduler",
+            "VAE",
+            "Seed",
+            "Version",
+        ):
+            assert label in content, f"Missing metadata label: {label}"
+
+    def test_log_html_contains_unfooocused_version(self, tmp_path):
+        """AC2: Version field distinguishes UnFooocused from FwdFooocus."""
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        content = (subdirs[0] / "log.html").read_text(encoding="utf-8")
+        assert "UnFooocused" in content
+
+    def test_log_html_uses_fooocus_split_marker(self, tmp_path):
+        """AC3: Uses <!--fooocus-log-split--> for cross-compatibility."""
+        from modules.async_worker import AsyncTask, Worker
+        from modules.html_log_writer import FOOOCUS_LOG_SPLIT_MARKER
+
+        task = AsyncTask(_minimal_args_list())
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        content = (subdirs[0] / "log.html").read_text(encoding="utf-8")
+        assert content.count(FOOOCUS_LOG_SPLIT_MARKER) == 2
+
+    def test_multiple_images_all_in_same_log(self, tmp_path):
+        """AC5: Multiple generations on same day append to same log.html."""
+        from modules.async_worker import AsyncTask, Worker
+
+        task = AsyncTask(_minimal_args_list())
+        # image_number=2 from _minimal_args_list
+        worker = Worker(output_dir=str(tmp_path))
+        worker.process_task(task)
+
+        subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        content = (subdirs[0] / "log.html").read_text(encoding="utf-8")
+        # Should have 2 image entries (image_number=2)
+        assert content.count('class="image-container"') == 2
+
+
+# ---------------------------------------------------------------------------
 # Model and LoRA logging (stub behavior)
 # ---------------------------------------------------------------------------
 
