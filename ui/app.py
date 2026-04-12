@@ -199,6 +199,7 @@ async def get_app_config() -> dict:
         "default_loras_max_weight": cfg.default_loras_max_weight,
         "default_max_lora_number": cfg.default_max_lora_number,
         "default_steps": cfg.default_steps,
+        "base_model_preset": cfg.base_model_preset,
     }
 
 

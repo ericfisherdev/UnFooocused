@@ -84,10 +84,14 @@ _DEFAULTS: dict[str, Any] = {
     "metadata_created_by": "",
     "default_describe_apply_prompts_checkbox": True,
     "default_describe_content_type": ["Photograph"],
+    # Base model preset (UNF-59) — populated below from _DEFAULT_BASE_MODEL_PRESET
 }
 
 _VALID_METADATA_SCHEMES: frozenset[str] = frozenset({"fooocus", "a111", "comfy"})
 _VALID_DESCRIBE_CONTENT_TYPES: frozenset[str] = frozenset({"Photograph", "Art/Anime"})
+_VALID_BASE_MODEL_PRESETS: frozenset[str] = frozenset({"SDXL", "Pony", "Illustrious"})
+_DEFAULT_BASE_MODEL_PRESET: str = "SDXL"
+_DEFAULTS["base_model_preset"] = _DEFAULT_BASE_MODEL_PRESET
 _UI_ADVANCED_BOOL_KEYS: tuple[str, ...] = (
     "default_advanced_checkbox",
     "default_developer_debug_mode_checkbox",
@@ -149,6 +153,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     _validate_image_gen_config(config)
     _validate_vae_perf_config(config)
     _validate_ui_metadata_config(config)
+    _validate_base_model_preset_config(config)
 
 
 _LORA_WEIGHT_BOUND: float = 10.0
@@ -388,6 +393,24 @@ def _validate_ui_metadata_config(config: dict[str, Any]) -> None:
             )
 
 
+def _validate_base_model_preset_config(config: dict[str, Any]) -> None:
+    """Validate base_model_preset with warn+fallback semantics (UNF-59).
+
+    Unlike other validators, invalid values do not raise — they log a warning
+    and fall back to the default preset so startup never crashes on a typo.
+    """
+    value = config.get("base_model_preset")
+    if isinstance(value, str) and value in _VALID_BASE_MODEL_PRESETS:
+        return
+    logger.warning(
+        "config.txt: base_model_preset=%r is not one of %s; falling back to %r",
+        value,
+        sorted(_VALID_BASE_MODEL_PRESETS),
+        _DEFAULT_BASE_MODEL_PRESET,
+    )
+    config["base_model_preset"] = _DEFAULT_BASE_MODEL_PRESET
+
+
 def _require_finite_number(config: dict[str, Any], key: str) -> float:
     """Return *config[key]* as float, raising ValueError unless finite and numeric."""
     value = config.get(key)
@@ -501,6 +524,9 @@ class AppConfig:
     default_describe_apply_prompts_checkbox: bool
     default_describe_content_type: tuple[str, ...]
 
+    # Base model preset (UNF-59)
+    base_model_preset: str
+
     # Discovered model files
     model_filenames: tuple[str, ...]
     lora_filenames: tuple[str, ...]
@@ -568,6 +594,7 @@ class AppConfig:
             metadata_created_by=raw["metadata_created_by"],
             default_describe_apply_prompts_checkbox=raw["default_describe_apply_prompts_checkbox"],
             default_describe_content_type=tuple(raw["default_describe_content_type"]),
+            base_model_preset=raw["base_model_preset"],
             model_filenames=tuple(_discover_files(paths_checkpoints)),
             lora_filenames=tuple(_discover_files(paths_loras)),
         )
