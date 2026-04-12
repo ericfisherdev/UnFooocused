@@ -765,3 +765,193 @@ class TestSamplingConfigValidation:
 
         with pytest.raises(ValueError, match=key):
             load_config(config_path=tmp_path / "config.txt")
+
+
+class TestImageGenDefaultsConfig:
+    """UNF-55: image generation defaults (prompt, styles, aspect ratio, image number, output format)."""
+
+    def _write(self, tmp_path, payload):
+        (tmp_path / "config.txt").write_text(json.dumps(payload))
+        return tmp_path / "config.txt"
+
+    def test_default_prompt_accepts_string(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_prompt": "a cat"}))
+        assert result["default_prompt"] == "a cat"
+
+    def test_raises_when_default_prompt_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_prompt"):
+            load_config(config_path=self._write(tmp_path, {"default_prompt": 42}))
+
+    def test_raises_when_default_prompt_negative_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_prompt_negative"):
+            load_config(config_path=self._write(tmp_path, {"default_prompt_negative": ["bad"]}))
+
+    def test_default_styles_accepts_list_of_strings(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_styles": ["Style A", "Style B"]}))
+        assert result["default_styles"] == ["Style A", "Style B"]
+
+    def test_raises_when_default_styles_not_list(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_styles"):
+            load_config(config_path=self._write(tmp_path, {"default_styles": "nope"}))
+
+    def test_raises_when_default_styles_has_non_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_styles"):
+            load_config(config_path=self._write(tmp_path, {"default_styles": ["A", 1]}))
+
+    def test_default_aspect_ratio_accepts_star_format(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_aspect_ratio": "1024*1024"}))
+        assert result["default_aspect_ratio"] == "1024*1024"
+
+    def test_default_aspect_ratio_accepts_x_format(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_aspect_ratio": "1024x1024"}))
+        assert result["default_aspect_ratio"] == "1024x1024"
+
+    def test_raises_when_default_aspect_ratio_bad_format(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_aspect_ratio"):
+            load_config(config_path=self._write(tmp_path, {"default_aspect_ratio": "square"}))
+
+    def test_raises_when_default_aspect_ratio_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_aspect_ratio"):
+            load_config(config_path=self._write(tmp_path, {"default_aspect_ratio": 1024}))
+
+    def test_raises_when_default_aspect_ratio_non_positive(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_aspect_ratio"):
+            load_config(config_path=self._write(tmp_path, {"default_aspect_ratio": "0*1024"}))
+
+    def test_available_aspect_ratios_accepts_list(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(
+            config_path=self._write(
+                tmp_path,
+                {"available_aspect_ratios": ["512*512", "1024*1024"], "default_aspect_ratio": "512*512"},
+            )
+        )
+        assert result["available_aspect_ratios"] == ["512*512", "1024*1024"]
+
+    def test_raises_when_available_aspect_ratios_not_list(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="available_aspect_ratios"):
+            load_config(config_path=self._write(tmp_path, {"available_aspect_ratios": "512*512"}))
+
+    def test_raises_when_available_aspect_ratios_has_bad_entry(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="available_aspect_ratios"):
+            load_config(
+                config_path=self._write(
+                    tmp_path,
+                    {"available_aspect_ratios": ["512*512", "bad"], "default_aspect_ratio": "512*512"},
+                )
+            )
+
+    def test_raises_when_default_aspect_ratio_not_in_available(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_aspect_ratio"):
+            load_config(
+                config_path=self._write(
+                    tmp_path,
+                    {"available_aspect_ratios": ["512*512"], "default_aspect_ratio": "1024*1024"},
+                )
+            )
+
+    def test_default_image_number_accepts_in_range(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_image_number": 4}))
+        assert result["default_image_number"] == 4
+
+    def test_raises_when_default_image_number_not_int(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_image_number"):
+            load_config(config_path=self._write(tmp_path, {"default_image_number": 2.5}))
+
+    def test_raises_when_default_image_number_is_bool(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_image_number"):
+            load_config(config_path=self._write(tmp_path, {"default_image_number": True}))
+
+    def test_raises_when_default_image_number_zero(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_image_number"):
+            load_config(config_path=self._write(tmp_path, {"default_image_number": 0}))
+
+    def test_raises_when_default_image_number_exceeds_max(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_image_number"):
+            load_config(
+                config_path=self._write(
+                    tmp_path,
+                    {"default_image_number": 100, "default_max_image_number": 32},
+                )
+            )
+
+    def test_raises_when_default_max_image_number_not_positive(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_max_image_number"):
+            load_config(config_path=self._write(tmp_path, {"default_max_image_number": 0}))
+
+    def test_raises_when_default_max_image_number_is_bool(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_max_image_number"):
+            load_config(config_path=self._write(tmp_path, {"default_max_image_number": True}))
+
+    def test_default_output_format_accepts_png(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_output_format": "png"}))
+        assert result["default_output_format"] == "png"
+
+    def test_default_output_format_accepts_jpeg(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_output_format": "jpeg"}))
+        assert result["default_output_format"] == "jpeg"
+
+    def test_default_output_format_accepts_webp(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_output_format": "webp"}))
+        assert result["default_output_format"] == "webp"
+
+    def test_raises_when_default_output_format_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_output_format"):
+            load_config(config_path=self._write(tmp_path, {"default_output_format": "gif"}))
+
+    def test_raises_when_default_output_format_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_output_format"):
+            load_config(config_path=self._write(tmp_path, {"default_output_format": 123}))
