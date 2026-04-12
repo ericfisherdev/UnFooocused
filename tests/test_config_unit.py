@@ -385,6 +385,20 @@ class TestLoraConfig:
 
         _validate_lora_entry(0, (True, "adapter.safetensors", 0.8))
 
+    def test_raises_when_lora_entry_weight_is_nan(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": [[True, "a.safetensors", float("nan")]]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="finite"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_lora_entry_weight_is_infinity(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": [[True, "a.safetensors", float("inf")]]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="finite"):
+            load_config(config_path=tmp_path / "config.txt")
+
     def test_raises_when_loras_exceeds_max_lora_number(self, tmp_path):
         (tmp_path / "config.txt").write_text(
             json.dumps(
