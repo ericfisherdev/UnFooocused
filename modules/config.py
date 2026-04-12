@@ -22,7 +22,17 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-from modules.flags import SAMPLER_NAMES, SCHEDULER_NAMES, clip_skip_max, sdxl_aspect_ratios
+from modules.flags import (
+    SAMPLER_NAMES,
+    SCHEDULER_NAMES,
+    clip_skip_max,
+    inpaint_engine_versions,
+    inpaint_mask_cloth_category,
+    inpaint_mask_models,
+    inpaint_mask_sam_model,
+    inpaint_options,
+    sdxl_aspect_ratios,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +113,19 @@ _DEFAULTS: dict[str, Any] = {
     "metadata_created_by": "",
     "default_describe_apply_prompts_checkbox": True,
     "default_describe_content_type": ["Photograph"],
+    # Inpaint / enhance (UNF-62)
+    "default_inpaint_engine_version": "v2.6",
+    "default_inpaint_method": "Inpaint or Outpaint (default)",
+    "default_inpaint_advanced_masking_checkbox": False,
+    "default_inpaint_mask_model": "isnet-general-use",
+    "default_inpaint_mask_cloth_category": "full",
+    "default_inpaint_mask_sam_model": "vit_b",
+    "default_invert_mask_checkbox": False,
+    "default_enhance_checkbox": False,
+    "default_enhance_inpaint_mask_model": "sam",
+    "default_sam_max_detections": 0,
+    "example_inpaint_prompts": [],
+    "example_enhance_detection_prompts": [],
     # Base model preset (UNF-59) — populated below from _DEFAULT_BASE_MODEL_PRESET
 }
 
@@ -130,6 +153,16 @@ for _slot in _IP_IMAGE_SLOTS:
     _DEFAULTS[f"default_ip_stop_at_{_slot}"] = 0.5
     _DEFAULTS[f"default_ip_weight_{_slot}"] = 1.0
 
+_VALID_INPAINT_ENGINE_VERSIONS: frozenset[str] = frozenset(inpaint_engine_versions)
+_VALID_INPAINT_MASK_MODELS: frozenset[str] = frozenset(inpaint_mask_models)
+_VALID_INPAINT_MASK_CLOTH_CATEGORIES: frozenset[str] = frozenset(inpaint_mask_cloth_category)
+_VALID_INPAINT_MASK_SAM_MODELS: frozenset[str] = frozenset(inpaint_mask_sam_model)
+_VALID_INPAINT_METHODS: frozenset[str] = frozenset(inpaint_options)
+_INPAINT_ENHANCE_BOOL_KEYS: tuple[str, ...] = (
+    "default_inpaint_advanced_masking_checkbox",
+    "default_invert_mask_checkbox",
+    "default_enhance_checkbox",
+)
 _VALID_METADATA_SCHEMES: frozenset[str] = frozenset({"fooocus", "a111", "comfy"})
 _VALID_DESCRIBE_CONTENT_TYPES: frozenset[str] = frozenset({"Photograph", "Art/Anime"})
 _VALID_BASE_MODEL_PRESETS: frozenset[str] = frozenset({"SDXL", "Pony", "Illustrious"})
@@ -304,6 +337,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     _validate_directory_paths(config)
     _validate_download_config(config)
     _validate_image_prompt_config(config)
+    _validate_inpaint_enhance_config(config)
 
 
 def _validate_directory_paths(config: dict[str, Any]) -> None:
@@ -606,6 +640,23 @@ def _validate_bounded_float(config: dict[str, Any], key: str, lo: float, hi: flo
         raise ValueError(f"config.txt: {key} must be a number in [{lo}, {hi}], got {value!r}")
 
 
+def _require_enum(config: dict[str, Any], key: str, allowed: frozenset[str]) -> None:
+    value = config.get(key)
+    if not isinstance(value, str):
+        raise ValueError(f"config.txt: {key} must be a string, got {value!r}")
+    if value not in allowed:
+        raise ValueError(f"config.txt: {key}={value!r} must be one of {sorted(allowed)}")
+
+
+def _require_string_list(config: dict[str, Any], key: str) -> None:
+    value = config.get(key)
+    if not isinstance(value, list):
+        raise ValueError(f"config.txt: {key} must be a list of strings, got {value!r}")
+    for entry in value:
+        if not isinstance(entry, str):
+            raise ValueError(f"config.txt: {key} entries must be strings, got {entry!r}")
+
+
 def _validate_image_prompt_config(config: dict[str, Any]) -> None:
     """Validate image-prompt (ControlNet/IP-Adapter) and UOV config keys (UNF-63)."""
     for key in ("default_image_prompt_checkbox", "default_image_prompt_advanced_checkbox"):
@@ -638,6 +689,40 @@ def _validate_image_prompt_config(config: dict[str, Any]) -> None:
     tab_id = config.get("default_selected_image_input_tab_id")
     if not isinstance(tab_id, str):
         raise ValueError(f"config.txt: default_selected_image_input_tab_id must be a string, got {tab_id!r}")
+
+
+def _validate_inpaint_enhance_config(config: dict[str, Any]) -> None:
+    """Validate inpaint/enhance config keys (UNF-62)."""
+    _require_enum(config, "default_inpaint_engine_version", _VALID_INPAINT_ENGINE_VERSIONS)
+
+    method = config.get("default_inpaint_method")
+    if not isinstance(method, str):
+        raise ValueError(f"config.txt: default_inpaint_method must be a string, got {method!r}")
+    if method not in _VALID_INPAINT_METHODS:
+        raise ValueError(
+            f"config.txt: default_inpaint_method={method!r} must be one of {sorted(_VALID_INPAINT_METHODS)}"
+        )
+
+    for key in _INPAINT_ENHANCE_BOOL_KEYS:
+        value = config.get(key)
+        if not isinstance(value, bool):
+            raise ValueError(f"config.txt: {key} must be a boolean, got {value!r}")
+
+    _require_enum(config, "default_inpaint_mask_model", _VALID_INPAINT_MASK_MODELS)
+    _require_enum(config, "default_inpaint_mask_cloth_category", _VALID_INPAINT_MASK_CLOTH_CATEGORIES)
+    _require_enum(config, "default_inpaint_mask_sam_model", _VALID_INPAINT_MASK_SAM_MODELS)
+    _require_enum(config, "default_enhance_inpaint_mask_model", _VALID_INPAINT_MASK_MODELS)
+
+    tabs = config.get("default_enhance_tabs")
+    if not isinstance(tabs, int) or isinstance(tabs, bool) or not 1 <= tabs <= 5:
+        raise ValueError(f"config.txt: default_enhance_tabs must be int in 1..5, got {tabs!r}")
+
+    detections = config.get("default_sam_max_detections")
+    if not isinstance(detections, int) or isinstance(detections, bool) or not 0 <= detections <= 10:
+        raise ValueError(f"config.txt: default_sam_max_detections must be int in 0..10, got {detections!r}")
+
+    _require_string_list(config, "example_inpaint_prompts")
+    _require_string_list(config, "example_enhance_detection_prompts")
 
 
 def _validate_base_model_preset_config(config: dict[str, Any]) -> None:
@@ -784,6 +869,20 @@ class AppConfig:
     default_describe_apply_prompts_checkbox: bool
     default_describe_content_type: tuple[str, ...]
 
+    # Inpaint / enhance (UNF-62)
+    default_inpaint_engine_version: str
+    default_inpaint_method: str
+    default_inpaint_advanced_masking_checkbox: bool
+    default_inpaint_mask_model: str
+    default_inpaint_mask_cloth_category: str
+    default_inpaint_mask_sam_model: str
+    default_invert_mask_checkbox: bool
+    default_enhance_checkbox: bool
+    default_enhance_inpaint_mask_model: str
+    default_sam_max_detections: int
+    example_inpaint_prompts: tuple[str, ...]
+    example_enhance_detection_prompts: tuple[str, ...]
+
     # Base model preset (UNF-59)
     base_model_preset: str
 
@@ -873,6 +972,18 @@ class AppConfig:
             metadata_created_by=raw["metadata_created_by"],
             default_describe_apply_prompts_checkbox=raw["default_describe_apply_prompts_checkbox"],
             default_describe_content_type=tuple(raw["default_describe_content_type"]),
+            default_inpaint_engine_version=raw["default_inpaint_engine_version"],
+            default_inpaint_method=raw["default_inpaint_method"],
+            default_inpaint_advanced_masking_checkbox=raw["default_inpaint_advanced_masking_checkbox"],
+            default_inpaint_mask_model=raw["default_inpaint_mask_model"],
+            default_inpaint_mask_cloth_category=raw["default_inpaint_mask_cloth_category"],
+            default_inpaint_mask_sam_model=raw["default_inpaint_mask_sam_model"],
+            default_invert_mask_checkbox=raw["default_invert_mask_checkbox"],
+            default_enhance_checkbox=raw["default_enhance_checkbox"],
+            default_enhance_inpaint_mask_model=raw["default_enhance_inpaint_mask_model"],
+            default_sam_max_detections=int(raw["default_sam_max_detections"]),
+            example_inpaint_prompts=tuple(raw["example_inpaint_prompts"]),
+            example_enhance_detection_prompts=tuple(raw["example_enhance_detection_prompts"]),
             base_model_preset=raw["base_model_preset"],
             checkpoint_downloads=MappingProxyType(dict(raw["checkpoint_downloads"])),
             lora_downloads=MappingProxyType(dict(raw["lora_downloads"])),

@@ -1807,3 +1807,351 @@ class TestImagePromptUpscaleConfig:
 
         with pytest.raises(ValueError, match="default_selected_image_input_tab_id"):
             load_config(config_path=self._write(tmp_path, {"default_selected_image_input_tab_id": 1}))
+
+
+class TestInpaintEnhanceConfig:
+    """UNF-62: inpainting and enhancement default config keys."""
+
+    def _write(self, tmp_path, payload):
+        path = tmp_path / "config.txt"
+        path.write_text(json.dumps(payload))
+        return path
+
+    def test_default_inpaint_engine_version_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_inpaint_engine_version"] == "v2.6"
+
+    @pytest.mark.parametrize("value", ["None", "v1", "v2.5", "v2.6"])
+    def test_default_inpaint_engine_version_valid(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_inpaint_engine_version": value}))
+        assert result["default_inpaint_engine_version"] == value
+
+    def test_default_inpaint_engine_version_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_inpaint_engine_version"):
+            load_config(config_path=self._write(tmp_path, {"default_inpaint_engine_version": "v3"}))
+
+    def test_default_inpaint_method_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_inpaint_method"] == "Inpaint or Outpaint (default)"
+
+    def test_default_inpaint_method_must_be_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_inpaint_method"):
+            load_config(config_path=self._write(tmp_path, {"default_inpaint_method": 123}))
+
+    def test_default_inpaint_method_rejects_unknown_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_inpaint_method"):
+            load_config(config_path=self._write(tmp_path, {"default_inpaint_method": "not-a-valid-method"}))
+
+    @pytest.mark.parametrize(
+        "key",
+        ["default_inpaint_advanced_masking_checkbox", "default_invert_mask_checkbox", "default_enhance_checkbox"],
+    )
+    def test_bool_default_false(self, tmp_path, key):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result[key] is False
+
+    @pytest.mark.parametrize(
+        "key",
+        ["default_inpaint_advanced_masking_checkbox", "default_invert_mask_checkbox", "default_enhance_checkbox"],
+    )
+    def test_bool_rejects_non_bool(self, tmp_path, key):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=self._write(tmp_path, {key: "yes"}))
+
+    @pytest.mark.parametrize("ip_type", ["ImagePrompt", "PyraCanny", "CPDS", "FaceSwap"])
+    def test_ip_type_valid(self, tmp_path, ip_type):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_type_1": ip_type}))
+        assert result["default_ip_type_1"] == ip_type
+
+    def test_ip_type_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_type_1"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_type_1": "Canny"}))
+
+    def test_ip_type_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_type_2"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_type_2": 7}))
+
+    @pytest.mark.parametrize("value", [0.0, 0.25, 0.5, 1.0])
+    def test_ip_stop_at_valid_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_1": value}))
+        assert result["default_ip_stop_at_1"] == pytest.approx(value)
+
+    @pytest.mark.parametrize("value", [-0.01, 1.01, 2.0])
+    def test_ip_stop_at_out_of_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_stop_at_1"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_1": value}))
+
+    def test_ip_stop_at_not_numeric(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_stop_at_3"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_3": "half"}))
+
+    def test_ip_stop_at_rejects_bool(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_stop_at_4"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_4": True}))
+
+    @pytest.mark.parametrize("value", [0.0, 0.5, 1.0, 2.0])
+    def test_ip_weight_valid_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_weight_2": value}))
+        assert result["default_ip_weight_2"] == pytest.approx(value)
+
+    @pytest.mark.parametrize("value", [-0.01, 2.01, 10.0])
+    def test_ip_weight_out_of_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_weight_2"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_weight_2": value}))
+
+    def test_ip_weight_not_numeric(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_weight_1"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_weight_1": None}))
+
+    @pytest.mark.parametrize("path", ["None", "my_image.png"])
+    def test_ip_image_accepts_string(self, tmp_path, path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_image_1": path}))
+        assert result["default_ip_image_1"] == path
+
+    def test_ip_image_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_image_4"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_image_4": 42}))
+
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "Disabled",
+            "Vary (Subtle)",
+            "Vary (Strong)",
+            "Upscale (1.5x)",
+            "Upscale (2x)",
+            "Upscale (Fast 2x)",
+        ],
+    )
+    def test_uov_method_valid(self, tmp_path, method):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_uov_method": method}))
+        assert result["default_uov_method"] == method
+
+    def test_uov_method_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_uov_method"):
+            load_config(config_path=self._write(tmp_path, {"default_uov_method": "Upscale (3x)"}))
+
+    def test_uov_method_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_uov_method"):
+            load_config(config_path=self._write(tmp_path, {"default_uov_method": 1}))
+
+    def test_selected_image_input_tab_id_accepts_string(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_selected_image_input_tab_id": "ip_tab"}))
+        assert result["default_selected_image_input_tab_id"] == "ip_tab"
+
+    def test_selected_image_input_tab_id_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_selected_image_input_tab_id"):
+            load_config(config_path=self._write(tmp_path, {"default_selected_image_input_tab_id": 1}))
+
+    def test_default_inpaint_mask_model_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_inpaint_mask_model"] == "isnet-general-use"
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "u2net",
+            "u2netp",
+            "u2net_human_seg",
+            "u2net_cloth_seg",
+            "silueta",
+            "isnet-general-use",
+            "isnet-anime",
+            "sam",
+        ],
+    )
+    def test_default_inpaint_mask_model_valid(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_inpaint_mask_model": value}))
+        assert result["default_inpaint_mask_model"] == value
+
+    def test_default_inpaint_mask_model_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_inpaint_mask_model"):
+            load_config(config_path=self._write(tmp_path, {"default_inpaint_mask_model": "bogus"}))
+
+    def test_default_inpaint_mask_cloth_category_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_inpaint_mask_cloth_category"] == "full"
+
+    @pytest.mark.parametrize("value", ["full", "upper", "lower"])
+    def test_default_inpaint_mask_cloth_category_valid(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_inpaint_mask_cloth_category": value}))
+        assert result["default_inpaint_mask_cloth_category"] == value
+
+    def test_default_inpaint_mask_cloth_category_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_inpaint_mask_cloth_category"):
+            load_config(config_path=self._write(tmp_path, {"default_inpaint_mask_cloth_category": "middle"}))
+
+    def test_default_inpaint_mask_sam_model_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_inpaint_mask_sam_model"] == "vit_b"
+
+    @pytest.mark.parametrize("value", ["vit_b", "vit_l", "vit_h"])
+    def test_default_inpaint_mask_sam_model_valid(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_inpaint_mask_sam_model": value}))
+        assert result["default_inpaint_mask_sam_model"] == value
+
+    def test_default_inpaint_mask_sam_model_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_inpaint_mask_sam_model"):
+            load_config(config_path=self._write(tmp_path, {"default_inpaint_mask_sam_model": "vit_x"}))
+
+    def test_default_enhance_tabs_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_enhance_tabs"] == 3
+
+    @pytest.mark.parametrize("value", [1, 2, 3, 4, 5])
+    def test_default_enhance_tabs_valid(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_enhance_tabs": value}))
+        assert result["default_enhance_tabs"] == value
+
+    @pytest.mark.parametrize("value", [0, 6, -1, "3", True, False])
+    def test_default_enhance_tabs_invalid(self, tmp_path, value):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_enhance_tabs"):
+            load_config(config_path=self._write(tmp_path, {"default_enhance_tabs": value}))
+
+    def test_default_enhance_inpaint_mask_model_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_enhance_inpaint_mask_model"] == "sam"
+
+    def test_default_enhance_inpaint_mask_model_valid(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_enhance_inpaint_mask_model": "u2net"}))
+        assert result["default_enhance_inpaint_mask_model"] == "u2net"
+
+    def test_default_enhance_inpaint_mask_model_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_enhance_inpaint_mask_model"):
+            load_config(config_path=self._write(tmp_path, {"default_enhance_inpaint_mask_model": "nope"}))
+
+    def test_default_sam_max_detections_default(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["default_sam_max_detections"] == 0
+
+    @pytest.mark.parametrize("value", [0, 1, 5, 10])
+    def test_default_sam_max_detections_valid(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_sam_max_detections": value}))
+        assert result["default_sam_max_detections"] == value
+
+    @pytest.mark.parametrize("value", [-1, 11, 100, "3", True, False])
+    def test_default_sam_max_detections_invalid(self, tmp_path, value):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_sam_max_detections"):
+            load_config(config_path=self._write(tmp_path, {"default_sam_max_detections": value}))
+
+    def test_example_inpaint_prompts_default_is_list(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert isinstance(result["example_inpaint_prompts"], list)
+
+    def test_example_inpaint_prompts_rejects_non_list(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="example_inpaint_prompts"):
+            load_config(config_path=self._write(tmp_path, {"example_inpaint_prompts": "nope"}))
+
+    def test_example_inpaint_prompts_rejects_non_string_entry(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="example_inpaint_prompts"):
+            load_config(config_path=self._write(tmp_path, {"example_inpaint_prompts": [1, 2]}))
+
+    def test_example_enhance_detection_prompts_default_is_list(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert isinstance(result["example_enhance_detection_prompts"], list)
+
+    def test_example_enhance_detection_prompts_rejects_non_list(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="example_enhance_detection_prompts"):
+            load_config(config_path=self._write(tmp_path, {"example_enhance_detection_prompts": {}}))
+
+    def test_example_enhance_detection_prompts_rejects_non_string_entry(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="example_enhance_detection_prompts"):
+            load_config(config_path=self._write(tmp_path, {"example_enhance_detection_prompts": [1, 2]}))

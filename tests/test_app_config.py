@@ -131,6 +131,18 @@ class TestAppConfigConstruction:
             "path_outputs",
             "temp_path",
             "temp_path_cleanup_on_launch",
+            "default_inpaint_engine_version",
+            "default_inpaint_method",
+            "default_inpaint_advanced_masking_checkbox",
+            "default_inpaint_mask_model",
+            "default_inpaint_mask_cloth_category",
+            "default_inpaint_mask_sam_model",
+            "default_invert_mask_checkbox",
+            "default_enhance_checkbox",
+            "default_enhance_inpaint_mask_model",
+            "default_sam_max_detections",
+            "example_inpaint_prompts",
+            "example_enhance_detection_prompts",
             "model_filenames",
             "lora_filenames",
         ]
@@ -148,6 +160,46 @@ class TestAppConfigConstruction:
         assert isinstance(cfg.default_sampler, str)
         assert isinstance(cfg.default_scheduler, str)
         assert isinstance(cfg.default_sample_sharpness, float)
+
+    def test_inpaint_enhance_fields_round_trip(self, tmp_path):
+        """UNF-62: inpaint/enhance fields propagate through AppConfig with correct types."""
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_inpaint_engine_version": "v2.6",
+                    "default_inpaint_method": "Improve Detail (face, hand, eyes, etc.)",
+                    "default_inpaint_advanced_masking_checkbox": True,
+                    "default_inpaint_mask_model": "sam",
+                    "default_inpaint_mask_cloth_category": "upper",
+                    "default_inpaint_mask_sam_model": "vit_l",
+                    "default_invert_mask_checkbox": True,
+                    "default_enhance_checkbox": True,
+                    "default_enhance_inpaint_mask_model": "isnet-general-use",
+                    "default_enhance_tabs": 4,
+                    "default_sam_max_detections": 5,
+                    "example_inpaint_prompts": ["face fix"],
+                    "example_enhance_detection_prompts": ["hands"],
+                }
+            )
+        )
+        from modules.config import AppConfig, load_config
+
+        raw = load_config(config_path=config_file)
+        cfg = AppConfig.from_dict(raw)
+        assert cfg.default_inpaint_engine_version == "v2.6"
+        assert cfg.default_inpaint_method == "Improve Detail (face, hand, eyes, etc.)"
+        assert cfg.default_inpaint_advanced_masking_checkbox is True
+        assert cfg.default_inpaint_mask_model == "sam"
+        assert cfg.default_inpaint_mask_cloth_category == "upper"
+        assert cfg.default_inpaint_mask_sam_model == "vit_l"
+        assert cfg.default_invert_mask_checkbox is True
+        assert cfg.default_enhance_checkbox is True
+        assert cfg.default_enhance_inpaint_mask_model == "isnet-general-use"
+        assert cfg.default_enhance_tabs == 4
+        assert cfg.default_sam_max_detections == 5
+        assert cfg.example_inpaint_prompts == ("face fix",)
+        assert cfg.example_enhance_detection_prompts == ("hands",)
 
     def test_custom_sampling_values_from_dict(self, tmp_path):
         """UNF-53: overriding sampling config values propagates into AppConfig."""
@@ -253,6 +305,18 @@ class TestAppConfigDirectConstruction:
             metadata_created_by="",
             default_describe_apply_prompts_checkbox=True,
             default_describe_content_type=("Photograph",),
+            default_inpaint_engine_version="v2.6",
+            default_inpaint_method="Inpaint or Outpaint (default)",
+            default_inpaint_advanced_masking_checkbox=False,
+            default_inpaint_mask_model="isnet-general-use",
+            default_inpaint_mask_cloth_category="full",
+            default_inpaint_mask_sam_model="vit_b",
+            default_invert_mask_checkbox=False,
+            default_enhance_checkbox=False,
+            default_enhance_inpaint_mask_model="sam",
+            default_sam_max_detections=0,
+            example_inpaint_prompts=(),
+            example_enhance_detection_prompts=(),
             base_model_preset="SDXL",
             checkpoint_downloads={},
             lora_downloads={},
