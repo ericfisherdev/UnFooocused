@@ -87,7 +87,10 @@ class TestGenerateArgsForwardsInputImages:
             "current_tab": task.current_tab,
             "uov_method": task.uov_method,
             "uov_input_image": task.uov_input_image,
+            "outpaint_selections": task.outpaint_selections,
             "inpaint_input_image": task.inpaint_input_image,
+            "inpaint_additional_prompt": task.inpaint_additional_prompt,
+            "inpaint_mask_image_upload": task.inpaint_mask_image_upload,
         }
 
     def test_inpaint_input_image_forwarded_from_body(self) -> None:
@@ -108,6 +111,24 @@ class TestGenerateArgsForwardsInputImages:
         assert fields["input_image_checkbox"] is False
         assert fields["inpaint_input_image"] is None
         assert fields["uov_input_image"] is None
+        assert fields["outpaint_selections"] == []
+        assert fields["inpaint_additional_prompt"] == ""
+        assert fields["inpaint_mask_image_upload"] is None
+
+    def test_outpaint_and_additional_fields_forwarded_from_body(self) -> None:
+        mask_upload = {"mask": "data:image/png;base64,DDDD"}
+        args = self._args(
+            {
+                "prompt": "x",
+                "outpaint_selections": ["left", "top"],
+                "inpaint_additional_prompt": "fix eyes",
+                "inpaint_mask_image_upload": mask_upload,
+            }
+        )
+        fields = self._unpack_input_image_slice(args)
+        assert fields["outpaint_selections"] == ["left", "top"]
+        assert fields["inpaint_additional_prompt"] == "fix eyes"
+        assert fields["inpaint_mask_image_upload"] == mask_upload
 
     def test_current_tab_forwarded_from_body(self) -> None:
         args = self._args({"prompt": "x", "current_tab": "inpaint", "input_image_checkbox": True})
