@@ -28,9 +28,9 @@ from modules.domain.inpaint import (
 )
 from numpy.typing import NDArray  # noqa: TC002 — runtime-referenced by Protocol signatures
 
-# Note: "respective" preserves FwdFooocus original spelling of "receptive field".
+# Note: "respective" preserves the upstream inpainting reference spelling of "receptive field".
 DEFAULT_RESPECTIVE_FIELD: float = 0.618
-"""Default `k` for interested-area expansion (FwdFooocus default)."""
+"""Default `k` for interested-area expansion (upstream inpainting reference default)."""
 
 CANONICAL_CEIL: int = 1024
 """Interested-image target max(H, W) before diffusion."""
