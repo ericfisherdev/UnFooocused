@@ -182,7 +182,18 @@ def load_config(
     _warn_missing_paths(config)
     if config.get("temp_path_cleanup_on_launch"):
         cleanup_temp_path(config["temp_path"])
+    _write_config_template_next_to(config_path)
     return config
+
+
+def _write_config_template_next_to(config_path: Path) -> None:
+    """Write full_config_template.txt alongside *config_path* (UNF-61)."""
+    from modules.config_template import write_template
+
+    try:
+        write_template(config_path.parent / "full_config_template.txt")
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning("failed to write full_config_template.txt: %s", exc)
 
 
 def _apply_path_env_overrides(config: dict[str, Any]) -> None:

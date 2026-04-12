@@ -60,3 +60,6 @@ Thumbs.db
 *.safetensors
 *.pth
 *.bin
+
+# Auto-generated config reference (UNF-61)
+full_config_template.txt
