@@ -819,7 +819,12 @@ class TestImageGenDefaultsConfig:
     def test_default_aspect_ratio_accepts_x_format(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config(config_path=self._write(tmp_path, {"default_aspect_ratio": "1024x1024"}))
+        result = load_config(
+            config_path=self._write(
+                tmp_path,
+                {"default_aspect_ratio": "1024x1024", "available_aspect_ratios": ["1024x1024"]},
+            )
+        )
         assert result["default_aspect_ratio"] == "1024x1024"
 
     def test_raises_when_default_aspect_ratio_bad_format(self, tmp_path):

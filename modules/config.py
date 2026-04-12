@@ -10,6 +10,7 @@ import copy
 import json
 import logging
 import math
+import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -120,6 +121,7 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError("config.txt: default_loras_min_weight must be < default_loras_max_weight")
     _validate_model_refiner_config(config)
     _validate_sampling_config(config)
+    _validate_image_gen_config(config)
 
 
 _LORA_WEIGHT_BOUND: float = 10.0
@@ -225,6 +227,71 @@ def _validate_sampling_config(config: dict[str, Any]) -> None:
     sharpness = _require_finite_number(config, "default_sample_sharpness")
     if sharpness < 0:
         raise ValueError(f"config.txt: default_sample_sharpness must be >= 0, got {sharpness}")
+
+
+_ASPECT_RATIO_RE = re.compile(r"^(\d+)[*x](\d+)$")
+_VALID_OUTPUT_FORMATS: frozenset[str] = frozenset({"png", "jpeg", "webp"})
+
+
+def _is_positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _validate_aspect_ratio_string(key: str, value: Any) -> None:
+    if not isinstance(value, str):
+        raise ValueError(f"config.txt: {key} must be a string like 'WIDTH*HEIGHT' or 'WIDTHxHEIGHT'")
+    match = _ASPECT_RATIO_RE.match(value)
+    if not match:
+        raise ValueError(f"config.txt: {key}={value!r} must match 'WIDTH*HEIGHT' or 'WIDTHxHEIGHT'")
+    width, height = int(match.group(1)), int(match.group(2))
+    if width <= 0 or height <= 0:
+        raise ValueError(f"config.txt: {key}={value!r} dimensions must be positive")
+
+
+def _validate_image_gen_config(config: dict[str, Any]) -> None:
+    """Validate image generation default config keys (UNF-55)."""
+    for key in ("default_prompt", "default_prompt_negative"):
+        if not isinstance(config.get(key), str):
+            raise ValueError(f"config.txt: {key} must be a string")
+
+    styles = config.get("default_styles")
+    if not isinstance(styles, list):
+        raise ValueError("config.txt: default_styles must be a list of strings")
+    if not all(isinstance(s, str) for s in styles):
+        raise ValueError("config.txt: default_styles entries must all be strings")
+
+    available = config.get("available_aspect_ratios")
+    if not isinstance(available, list):
+        raise ValueError("config.txt: available_aspect_ratios must be a list of aspect-ratio strings")
+    for entry in available:
+        _validate_aspect_ratio_string("available_aspect_ratios", entry)
+
+    _validate_aspect_ratio_string("default_aspect_ratio", config.get("default_aspect_ratio"))
+    if config["default_aspect_ratio"] not in available:
+        raise ValueError(
+            f"config.txt: default_aspect_ratio={config['default_aspect_ratio']!r} "
+            f"must be one of available_aspect_ratios"
+        )
+
+    max_images = config.get("default_max_image_number")
+    if not _is_positive_int(max_images):
+        raise ValueError("config.txt: default_max_image_number must be a positive integer")
+
+    image_number = config.get("default_image_number")
+    if not _is_positive_int(image_number):
+        raise ValueError("config.txt: default_image_number must be a positive integer")
+    if image_number > max_images:
+        raise ValueError(
+            f"config.txt: default_image_number={image_number} exceeds default_max_image_number={max_images}"
+        )
+
+    output_format = config.get("default_output_format")
+    if not isinstance(output_format, str):
+        raise ValueError(f"config.txt: default_output_format must be a string, one of {sorted(_VALID_OUTPUT_FORMATS)}")
+    if output_format not in _VALID_OUTPUT_FORMATS:
+        raise ValueError(
+            f"config.txt: default_output_format={output_format!r} must be one of {sorted(_VALID_OUTPUT_FORMATS)}"
+        )
 
 
 def _require_finite_number(config: dict[str, Any], key: str) -> float:
