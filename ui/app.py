@@ -303,11 +303,11 @@ def _build_generate_args(body: dict) -> list:
         body.get("input_image_checkbox", False),
         body.get("current_tab", "uov"),
         body.get("uov_method", disabled),
-        None,  # uov_input_image
-        [],  # outpaint_selections
-        None,  # inpaint_input_image (dict with image+mask)
-        "",  # inpaint_additional_prompt
-        None,  # inpaint_mask_image_upload
+        body.get("uov_input_image"),
+        body.get("outpaint_selections", []),
+        body.get("inpaint_input_image"),
+        body.get("inpaint_additional_prompt", ""),
+        body.get("inpaint_mask_image_upload"),
         # Developer/debug settings
         body.get("disable_preview", False),
         body.get("disable_intermediate_results", False),

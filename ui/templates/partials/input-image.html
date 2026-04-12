@@ -1,0 +1,97 @@
+{#
+  Input Image section — collapsible container hosting three sub-tabs:
+  Upscale or Variation, Image Prompt, Inpaint or Outpaint.
+
+  Scope inherits inputImageEnabled from the split-pane container.
+  Visibility is gated on the existing inputImageEnabled toggle so this
+  section only appears when the user enables it from the settings drawer.
+#}
+<section class="input-image"
+         data-testid="input-image-section"
+         x-data="inputImageTabs()"
+         x-show="inputImageEnabled"
+         x-cloak
+         aria-label="Input Image">
+
+    <div class="input-image__tabs" role="tablist" aria-label="Input Image modes">
+        <button type="button"
+                class="input-image__tab"
+                :class="{ 'input-image__tab--active': activeTab === 'uov' }"
+                role="tab"
+                :aria-selected="(activeTab === 'uov').toString()"
+                data-testid="input-image-tab-uov"
+                @click="activeTab = 'uov'">
+            Upscale or Variation
+        </button>
+        <button type="button"
+                class="input-image__tab"
+                :class="{ 'input-image__tab--active': activeTab === 'ip' }"
+                role="tab"
+                :aria-selected="(activeTab === 'ip').toString()"
+                data-testid="input-image-tab-ip"
+                @click="activeTab = 'ip'">
+            Image Prompt
+        </button>
+        <button type="button"
+                class="input-image__tab"
+                :class="{ 'input-image__tab--active': activeTab === 'inpaint' }"
+                role="tab"
+                :aria-selected="(activeTab === 'inpaint').toString()"
+                data-testid="input-image-tab-inpaint"
+                @click="activeTab = 'inpaint'">
+            Inpaint or Outpaint
+        </button>
+    </div>
+
+    <div class="input-image__panel" role="tabpanel" x-show="activeTab === 'uov'" x-cloak>
+        <label class="input-image__upload text-label">
+            <span>Upload image for upscale or variation</span>
+            <input type="file"
+                   accept="image/*"
+                   data-testid="uov-image-upload"
+                   @change="onUovUpload($event)">
+        </label>
+        <img class="input-image__preview"
+             x-show="uovImage"
+             :src="uovImage"
+             alt="Upscale or variation source image">
+    </div>
+
+    <div class="input-image__panel" role="tabpanel" x-show="activeTab === 'ip'" x-cloak>
+        <p class="text-body-muted">Image Prompt controls will be added in a later phase.</p>
+    </div>
+
+    <div class="input-image__panel" role="tabpanel" x-show="activeTab === 'inpaint'" x-cloak>
+        <label class="input-image__upload text-label">
+            <span>Upload image to inpaint</span>
+            <input type="file"
+                   accept="image/*"
+                   data-testid="inpaint-image-upload"
+                   @change="onInpaintUpload($event)">
+        </label>
+        <div class="input-image__canvas-wrapper" x-show="inpaintImage" x-cloak>
+            <canvas x-ref="inpaintCanvas"
+                    class="input-image__canvas"
+                    data-testid="inpaint-mask-canvas"
+                    @mousedown="startStroke($event)"
+                    @mousemove="drawStroke($event)"
+                    @mouseup.window="endStroke()"
+                    @mouseleave="endStroke()"></canvas>
+            <div class="input-image__brush-controls">
+                <label class="text-label" for="inpaint-brush-size">Brush size</label>
+                <input id="inpaint-brush-size"
+                       type="range"
+                       class="slider"
+                       min="4"
+                       max="128"
+                       x-model.number="brushSize">
+                <button type="button"
+                        class="btn btn-secondary btn-sm"
+                        data-testid="inpaint-clear-mask"
+                        @click="clearMask()">
+                    Clear mask
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
