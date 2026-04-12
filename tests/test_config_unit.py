@@ -251,7 +251,7 @@ class TestLoadConfigValidation:
 class TestLoraConfig:
     """UNF-54: LoRA config option validation."""
 
-    def test_default_loras_accepts_valid_tuples(self, tmp_path):
+    def test_default_loras_accepts_valid_entries(self, tmp_path):
         config_file = tmp_path / "config.txt"
         config_file.write_text(
             json.dumps(
@@ -354,6 +354,50 @@ class TestLoraConfig:
 
     def test_raises_when_max_lora_number_negative(self, tmp_path):
         (tmp_path / "config.txt").write_text(json.dumps({"default_max_lora_number": -3}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_max_lora_number"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_min_weight_is_bool(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras_min_weight": True}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras_min_weight"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_max_weight_is_bool(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras_max_weight": False}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras_max_weight"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_max_lora_number_is_bool(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_max_lora_number": True}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_max_lora_number"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_validate_lora_entry_accepts_tuple(self):
+        from modules.config import _validate_lora_entry
+
+        _validate_lora_entry(0, (True, "adapter.safetensors", 0.8))
+
+    def test_raises_when_loras_exceeds_max_lora_number(self, tmp_path):
+        (tmp_path / "config.txt").write_text(
+            json.dumps(
+                {
+                    "default_max_lora_number": 2,
+                    "default_loras": [
+                        [True, "a.safetensors", 1.0],
+                        [True, "b.safetensors", 1.0],
+                        [True, "c.safetensors", 1.0],
+                    ],
+                }
+            )
+        )
         from modules.config import load_config
 
         with pytest.raises(ValueError, match="default_max_lora_number"):
