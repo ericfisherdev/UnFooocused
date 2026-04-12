@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -165,21 +166,24 @@ def _validate_sampling_config(config: dict[str, Any]) -> None:
     if not (1 <= clip_skip <= clip_skip_max):
         raise ValueError(f"config.txt: default_clip_skip must be in 1..{clip_skip_max}, got {clip_skip}")
 
-    cfg_tsnr = config.get("default_cfg_tsnr")
-    if not isinstance(cfg_tsnr, int | float) or isinstance(cfg_tsnr, bool):
-        raise ValueError(f"config.txt: default_cfg_tsnr must be a number, got {cfg_tsnr!r}")
-
-    cfg_scale = config.get("default_cfg_scale")
-    if not isinstance(cfg_scale, int | float) or isinstance(cfg_scale, bool):
-        raise ValueError(f"config.txt: default_cfg_scale must be a number, got {cfg_scale!r}")
+    _require_finite_number(config, "default_cfg_tsnr")
+    cfg_scale = _require_finite_number(config, "default_cfg_scale")
     if cfg_scale <= 0:
         raise ValueError(f"config.txt: default_cfg_scale must be > 0, got {cfg_scale}")
 
-    sharpness = config.get("default_sample_sharpness")
-    if not isinstance(sharpness, int | float) or isinstance(sharpness, bool):
-        raise ValueError(f"config.txt: default_sample_sharpness must be a number, got {sharpness!r}")
+    sharpness = _require_finite_number(config, "default_sample_sharpness")
     if sharpness < 0:
         raise ValueError(f"config.txt: default_sample_sharpness must be >= 0, got {sharpness}")
+
+
+def _require_finite_number(config: dict[str, Any], key: str) -> float:
+    """Return *config[key]* as float, raising ValueError unless finite and numeric."""
+    value = config.get(key)
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise ValueError(f"config.txt: {key} must be a number, got {value!r}")
+    if not math.isfinite(value):
+        raise ValueError(f"config.txt: {key} must be finite, got {value}")
+    return float(value)
 
 
 # ---------------------------------------------------------------------------
