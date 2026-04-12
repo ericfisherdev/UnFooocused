@@ -78,14 +78,17 @@ def _get_model_patcher(model: Any) -> Any:
 def _configure_ldm_args() -> None:
     """Configure ldm_patched args for low VRAM before any ldm_patched import.
 
-    Must be called before importing ldm_patched.modules.model_management,
-    which reads args at module scope to determine VRAM strategy. Without
-    these settings, PyTorch eagerly reserves GPU memory and OOMs on 4GB cards.
+    Normally called by launch.py before the server starts. This is a
+    safety net for cases where the pipeline is built without the launcher
+    (e.g. direct tests). Idempotent — does not overwrite values already
+    set by the launcher.
     """
     from ldm_patched.modules.args_parser import args
 
-    args.disable_async_cuda_allocation = True
-    args.always_offload_from_vram = True
+    if not getattr(args, "always_offload_from_vram", False):
+        args.always_offload_from_vram = True
+    if not getattr(args, "disable_async_cuda_allocation", False):
+        args.disable_async_cuda_allocation = True
 
 
 def _build_pipeline_from_ldm() -> Any:
