@@ -130,7 +130,7 @@ def _is_number(value: Any) -> bool:
 
 
 def _validate_lora_entry(index: int, entry: Any) -> None:
-    if not isinstance(entry, list) or len(entry) != 3:
+    if not isinstance(entry, list | tuple) or len(entry) != 3:
         raise ValueError(f"config.txt: default_loras[{index}] must be a [enabled, filename, weight] triple")
     enabled, filename, weight = entry
     if not isinstance(enabled, bool):
@@ -164,6 +164,10 @@ def _validate_lora_config(config: dict[str, Any]) -> None:
         raise ValueError("config.txt: default_max_lora_number must be a positive integer")
     if max_loras <= 0:
         raise ValueError("config.txt: default_max_lora_number must be > 0")
+    if len(loras) > max_loras:
+        raise ValueError(
+            f"config.txt: default_loras has {len(loras)} entries but default_max_lora_number is {max_loras}"
+        )
 
 
 def _validate_model_refiner_config(config: dict[str, Any]) -> None:
