@@ -93,7 +93,7 @@ KEY_DOCS: dict[str, KeyDoc] = {
     ),
     "default_image_number": KeyDoc("Image Generation", "int", "Default batch size (images per generation)."),
     "default_max_image_number": KeyDoc("Image Generation", "int", "Upper limit for the batch-size slider."),
-    "default_output_format": KeyDoc("Image Generation", "string", "Output file format.", "png | jpg | webp"),
+    "default_output_format": KeyDoc("Image Generation", "string", "Output file format.", "png | jpeg | webp"),
     "default_prompt": KeyDoc("Image Generation", "string", "Starter positive prompt."),
     "default_prompt_negative": KeyDoc("Image Generation", "string", "Starter negative prompt."),
     "default_styles": KeyDoc("Image Generation", "list[string]", "Styles enabled by default."),

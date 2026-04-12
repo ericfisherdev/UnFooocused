@@ -192,7 +192,7 @@ def _write_config_template_next_to(config_path: Path) -> None:
 
     try:
         write_template(config_path.parent / "full_config_template.txt")
-    except OSError as exc:
+    except (OSError, ValueError, TypeError) as exc:
         logger.warning("failed to write full_config_template.txt: %s", exc)
 
 
