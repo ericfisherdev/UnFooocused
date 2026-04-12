@@ -1574,6 +1574,17 @@ class TestDownloadCacheConfig:
         with pytest.raises(ValueError, match=key):
             _validate_download_config(config)
 
+    @pytest.mark.parametrize(
+        "bad_name", ["../evil.bin", "/abs/evil.bin", "sub/evil.bin", "sub\\evil.bin", ".", "..", ""]
+    )
+    def test_path_traversal_filename_rejected(self, tmp_path, bad_name):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="checkpoint_downloads"):
+            load_config(
+                config_path=self._write(tmp_path, {"checkpoint_downloads": {bad_name: "https://example.com/x.bin"}})
+            )
+
 
 class TestPlanMissingDownloads:
     """UNF-60: queue missing files for download on startup."""

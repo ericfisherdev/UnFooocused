@@ -531,6 +531,10 @@ def _validate_download_config(config: dict[str, Any]) -> None:
         for filename, url in mapping.items():
             if not isinstance(filename, str):
                 raise ValueError(f"config.txt: {key} keys must be strings, got {filename!r}")
+            if not filename or filename in {".", ".."} or "/" in filename or "\\" in filename:
+                raise ValueError(
+                    f"config.txt: {key} keys must be plain filenames without path components, got {filename!r}"
+                )
             if not isinstance(url, str):
                 raise ValueError(f"config.txt: {key}[{filename!r}] URL must be a string, got {url!r}")
 
