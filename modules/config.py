@@ -115,10 +115,55 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError("config.txt: paths_loras must be a list of paths")
     if not isinstance(config.get("path_fast_checkpoints"), str):
         raise ValueError("config.txt: path_fast_checkpoints must be a string path")
+    _validate_lora_config(config)
     if config["default_loras_min_weight"] >= config["default_loras_max_weight"]:
         raise ValueError("config.txt: default_loras_min_weight must be < default_loras_max_weight")
     _validate_model_refiner_config(config)
     _validate_sampling_config(config)
+
+
+_LORA_WEIGHT_BOUND: float = 10.0
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _validate_lora_entry(index: int, entry: Any) -> None:
+    if not isinstance(entry, list) or len(entry) != 3:
+        raise ValueError(f"config.txt: default_loras[{index}] must be a [enabled, filename, weight] triple")
+    enabled, filename, weight = entry
+    if not isinstance(enabled, bool):
+        raise ValueError(f"config.txt: default_loras[{index}] enabled flag must be a bool")
+    if not isinstance(filename, str):
+        raise ValueError(f"config.txt: default_loras[{index}] filename must be a string")
+    if not _is_number(weight):
+        raise ValueError(f"config.txt: default_loras[{index}] weight must be a number")
+
+
+def _validate_lora_weight_bound(key: str, value: Any) -> None:
+    if not _is_number(value):
+        raise ValueError(f"config.txt: {key} must be a number in [-10, 10]")
+    if not -_LORA_WEIGHT_BOUND <= float(value) <= _LORA_WEIGHT_BOUND:
+        raise ValueError(f"config.txt: {key} must be within [-10, 10]")
+
+
+def _validate_lora_config(config: dict[str, Any]) -> None:
+    """Validate LoRA config keys (UNF-54)."""
+    loras = config.get("default_loras")
+    if not isinstance(loras, list):
+        raise ValueError("config.txt: default_loras must be a list of [enabled, filename, weight] triples")
+    for index, entry in enumerate(loras):
+        _validate_lora_entry(index, entry)
+
+    _validate_lora_weight_bound("default_loras_min_weight", config.get("default_loras_min_weight"))
+    _validate_lora_weight_bound("default_loras_max_weight", config.get("default_loras_max_weight"))
+
+    max_loras = config.get("default_max_lora_number")
+    if not isinstance(max_loras, int) or isinstance(max_loras, bool):
+        raise ValueError("config.txt: default_max_lora_number must be a positive integer")
+    if max_loras <= 0:
+        raise ValueError("config.txt: default_max_lora_number must be > 0")
 
 
 def _validate_model_refiner_config(config: dict[str, Any]) -> None:
