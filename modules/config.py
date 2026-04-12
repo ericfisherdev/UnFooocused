@@ -6,6 +6,7 @@ falling back to sensible defaults for SDXL image generation.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import threading
@@ -84,7 +85,7 @@ def load_config(
         ValueError: If the config file exists but contains invalid JSON,
             is not a JSON object, or has invalid override types.
     """
-    config = dict(_DEFAULTS)
+    config = copy.deepcopy(_DEFAULTS)
     config_path = Path(config_path)
 
     if config_path.is_file():
@@ -133,8 +134,11 @@ def _validate_model_refiner_config(config: dict[str, Any]) -> None:
     if base_model is not None and not isinstance(base_model, str):
         raise ValueError("config.txt: default_base_model must be a string or null")
 
-    if not isinstance(config.get("previous_default_models"), list):
+    previous_models = config.get("previous_default_models")
+    if not isinstance(previous_models, list):
         raise ValueError("config.txt: previous_default_models must be a list of filenames")
+    if not all(isinstance(item, str) for item in previous_models):
+        raise ValueError("config.txt: previous_default_models entries must all be strings")
 
 
 # ---------------------------------------------------------------------------
