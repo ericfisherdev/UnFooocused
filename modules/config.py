@@ -188,6 +188,9 @@ def _warn_missing_paths(config: dict[str, Any]) -> None:
 def cleanup_temp_path(temp_path: str) -> None:
     """Remove all contents of *temp_path* on launch (UNF-58)."""
     path = Path(temp_path)
+    if path.is_symlink():
+        logger.warning("refusing to clean temp_path=%r because it is a symlink", temp_path)
+        return
     if not path.is_dir():
         return
     for child in path.iterdir():

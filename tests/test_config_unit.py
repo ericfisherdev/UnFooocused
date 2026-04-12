@@ -1381,6 +1381,41 @@ class TestDirectoryPathConfig:
 
         cleanup_temp_path(str(tmp_path / "does_not_exist"))
 
+    def test_cleanup_temp_path_unlinks_child_symlink_preserving_target(self, tmp_path):
+        from modules.config import cleanup_temp_path
+
+        temp = tmp_path / "temp"
+        temp.mkdir()
+        target = tmp_path / "target_dir"
+        target.mkdir()
+        (target / "secret.txt").write_text("keep me")
+
+        symlink = temp / "link_to_target"
+        symlink.symlink_to(target)
+
+        cleanup_temp_path(str(temp))
+
+        assert not symlink.exists()
+        assert target.is_dir()
+        assert (target / "secret.txt").read_text() == "keep me"
+
+    def test_cleanup_temp_path_refuses_symlinked_root(self, tmp_path, caplog):
+        import logging
+
+        from modules.config import cleanup_temp_path
+
+        real = tmp_path / "real"
+        real.mkdir()
+        (real / "keep.txt").write_text("keep")
+        link = tmp_path / "temp_link"
+        link.symlink_to(real)
+
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            cleanup_temp_path(str(link))
+
+        assert (real / "keep.txt").exists()
+        assert any("symlink" in rec.message for rec in caplog.records)
+
     def test_load_config_cleans_temp_when_enabled(self, tmp_path):
         from modules.config import load_config
 
