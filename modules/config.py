@@ -194,7 +194,7 @@ def _is_safe_temp_path(temp_path: str) -> bool:
         return False
     try:
         resolved = Path(temp_path).expanduser().resolve()
-    except (OSError, RuntimeError):
+    except OSError, RuntimeError:
         return False
     if resolved == resolved.parent:
         return False
