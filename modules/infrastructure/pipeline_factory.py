@@ -180,7 +180,10 @@ def _make_ksampler_wrapper():
     """
     import ldm_patched.modules.model_management
     import ldm_patched.modules.sample
+    import torch
 
+    @torch.no_grad()
+    @torch.inference_mode()
     def ksampler_fn(
         *,
         model,

@@ -85,6 +85,10 @@ class LdmVAEDecoder:
     def decode(self, vae: StableDiffusionModel, latent: LatentTensor) -> list[NDArray[Any]]:
         """Decode a latent tensor into pixel-space images.
 
+        Wraps the actual decode in torch.no_grad() and torch.inference_mode()
+        to disable gradient computation and enable inference optimizations,
+        matching Fooocus-style's decode_vae() behavior.
+
         Automatically uses tiled decoding when the implied pixel dimensions
         exceed the tiled threshold. Converts the VAE output from float [0, 1]
         tensors to uint8 [0, 255] numpy arrays.
@@ -106,32 +110,42 @@ class LdmVAEDecoder:
         # Loading the VAE via model_management offloads other models automatically.
         _load_vae_to_gpu(inner_vae)
 
-        if use_tiled:
-            logger.debug("Using tiled VAE decode (threshold=%d)", self._tiled_threshold)
-            image_batch = self._vae_decode_tiled_op.decode(
-                samples=latent,
-                vae=inner_vae,
-                tile_size=_DEFAULT_TILE_SIZE,
-            )[0]
-        else:
-            try:
-                image_batch = self._vae_decode_op.decode(
+        image_batch = self._decode_with_inference_mode(inner_vae, latent, use_tiled)
+        return _pytorch_to_numpy(image_batch)
+
+    def _decode_with_inference_mode(self, vae: Any, latent: LatentTensor, use_tiled: bool) -> Any:
+        """Run VAE decode with gradient computation disabled.
+
+        Wraps decode in torch.no_grad() + torch.inference_mode() to match
+        Fooocus-style behavior — saves VRAM and enables inference optimizations.
+        Falls back to tiled decoding on OOM.
+        """
+        import torch
+
+        with torch.no_grad(), torch.inference_mode():
+            if use_tiled:
+                logger.debug("Using tiled VAE decode (threshold=%d)", self._tiled_threshold)
+                return self._vae_decode_tiled_op.decode(
                     samples=latent,
-                    vae=inner_vae,
+                    vae=vae,
+                    tile_size=_DEFAULT_TILE_SIZE,
+                )[0]
+
+            try:
+                return self._vae_decode_op.decode(
+                    samples=latent,
+                    vae=vae,
                 )[0]
             except RuntimeError as exc:
                 if "out of memory" in str(exc).lower():
                     logger.warning("VAE decode OOM — retrying with tiled decoding")
                     _soft_empty_cache()
-                    image_batch = self._vae_decode_tiled_op.decode(
+                    return self._vae_decode_tiled_op.decode(
                         samples=latent,
-                        vae=inner_vae,
+                        vae=vae,
                         tile_size=_DEFAULT_TILE_SIZE,
                     )[0]
-                else:
-                    raise
-
-        return _pytorch_to_numpy(image_batch)
+                raise
 
 
 # ---------------------------------------------------------------------------
