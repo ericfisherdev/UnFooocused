@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from modules.flags import sdxl_aspect_ratios
+from modules.flags import SAMPLER_NAMES, SCHEDULER_NAMES, clip_skip_max, sdxl_aspect_ratios
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +43,12 @@ _DEFAULTS: dict[str, Any] = {
         "Fooocus Enhance",
         "Fooocus Sharp",
     ],
-    "default_cfg_scale": 4.0,
+    "default_cfg_scale": 7.0,
+    "default_cfg_tsnr": 7.0,
     "default_sample_sharpness": 2.0,
     "default_sampler": "dpmpp_2m_sde_gpu",
     "default_scheduler": "karras",
+    "default_clip_skip": 2,
     "default_loras": [
         [True, "sd_xl_offset_example-lora_1.0.safetensors", 0.1],
         [True, "None", 1.0],
@@ -115,6 +117,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     if config["default_loras_min_weight"] >= config["default_loras_max_weight"]:
         raise ValueError("config.txt: default_loras_min_weight must be < default_loras_max_weight")
     _validate_model_refiner_config(config)
+    _validate_sampling_config(config)
 
 
 def _validate_model_refiner_config(config: dict[str, Any]) -> None:
@@ -139,6 +142,32 @@ def _validate_model_refiner_config(config: dict[str, Any]) -> None:
         raise ValueError("config.txt: previous_default_models must be a list of filenames")
     if not all(isinstance(item, str) for item in previous_models):
         raise ValueError("config.txt: previous_default_models entries must all be strings")
+
+
+def _validate_sampling_config(config: dict[str, Any]) -> None:
+    """Validate sampler, scheduler, CFG, and clip_skip override values."""
+    sampler = config.get("default_sampler")
+    if sampler not in SAMPLER_NAMES:
+        raise ValueError(
+            f"config.txt: default_sampler={sampler!r} is not a valid sampler. Valid options: {', '.join(SAMPLER_NAMES)}"
+        )
+
+    scheduler = config.get("default_scheduler")
+    if scheduler not in SCHEDULER_NAMES:
+        raise ValueError(
+            f"config.txt: default_scheduler={scheduler!r} is not a valid scheduler. "
+            f"Valid options: {', '.join(SCHEDULER_NAMES)}"
+        )
+
+    clip_skip = config.get("default_clip_skip")
+    if not isinstance(clip_skip, int) or isinstance(clip_skip, bool):
+        raise ValueError(f"config.txt: default_clip_skip must be an integer in 1..{clip_skip_max}, got {clip_skip!r}")
+    if not (1 <= clip_skip <= clip_skip_max):
+        raise ValueError(f"config.txt: default_clip_skip must be in 1..{clip_skip_max}, got {clip_skip}")
+
+    cfg_tsnr = config.get("default_cfg_tsnr")
+    if not isinstance(cfg_tsnr, int | float) or isinstance(cfg_tsnr, bool):
+        raise ValueError(f"config.txt: default_cfg_tsnr must be a number, got {cfg_tsnr!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -205,9 +234,11 @@ class AppConfig:
     default_prompt_negative: str
     default_styles: tuple[str, ...]
     default_cfg_scale: float
+    default_cfg_tsnr: float
     default_sample_sharpness: float
     default_sampler: str
     default_scheduler: str
+    default_clip_skip: int
     default_loras: tuple[tuple, ...]
     default_loras_min_weight: float
     default_loras_max_weight: float
@@ -260,9 +291,11 @@ class AppConfig:
             default_prompt_negative=raw["default_prompt_negative"],
             default_styles=tuple(raw["default_styles"]),
             default_cfg_scale=float(raw["default_cfg_scale"]),
+            default_cfg_tsnr=float(raw["default_cfg_tsnr"]),
             default_sample_sharpness=float(raw["default_sample_sharpness"]),
             default_sampler=raw["default_sampler"],
             default_scheduler=raw["default_scheduler"],
+            default_clip_skip=int(raw["default_clip_skip"]),
             default_loras=tuple(tuple(lora) for lora in raw["default_loras"]),
             default_loras_min_weight=float(raw["default_loras_min_weight"]),
             default_loras_max_weight=float(raw["default_loras_max_weight"]),

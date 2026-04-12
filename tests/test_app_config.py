@@ -192,7 +192,7 @@ class TestAppConfigDirectConstruction:
             default_prompt="",
             default_prompt_negative="",
             default_styles=(),
-            default_cfg_scale=7.0,
+            default_cfg_scale=4.0,
             default_cfg_tsnr=7.0,
             default_clip_skip=2,
             default_sample_sharpness=2.0,
