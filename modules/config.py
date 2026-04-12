@@ -281,9 +281,13 @@ def _validate_image_gen_config(config: dict[str, Any]) -> None:
     if not _is_positive_int(image_number):
         raise ValueError("config.txt: default_image_number must be a positive integer")
     if image_number > max_images:
-        raise ValueError(
-            f"config.txt: default_image_number={image_number} exceeds default_max_image_number={max_images}"
+        logger.warning(
+            "config.txt: default_image_number=%d exceeds default_max_image_number=%d; clamping to %d",
+            image_number,
+            max_images,
+            max_images,
         )
+        config["default_image_number"] = max_images
 
     output_format = config.get("default_output_format")
     if not isinstance(output_format, str):

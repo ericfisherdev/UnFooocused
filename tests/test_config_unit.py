@@ -908,16 +908,21 @@ class TestImageGenDefaultsConfig:
         with pytest.raises(ValueError, match="default_image_number"):
             load_config(config_path=self._write(tmp_path, {"default_image_number": 0}))
 
-    def test_raises_when_default_image_number_exceeds_max(self, tmp_path):
+    def test_clamps_default_image_number_to_max(self, tmp_path, caplog):
+        import logging
+
         from modules.config import load_config
 
-        with pytest.raises(ValueError, match="default_image_number"):
-            load_config(
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            result = load_config(
                 config_path=self._write(
                     tmp_path,
                     {"default_image_number": 100, "default_max_image_number": 32},
                 )
             )
+
+        assert result["default_image_number"] == 32
+        assert any("clamping" in rec.message for rec in caplog.records)
 
     def test_raises_when_default_max_image_number_not_positive(self, tmp_path):
         from modules.config import load_config
