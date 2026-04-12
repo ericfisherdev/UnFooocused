@@ -32,6 +32,7 @@ _CATEGORY_ORDER: tuple[str, ...] = (
     "UI, Metadata & Advanced",
     "Base Model Preset",
     "Downloads & Cache",
+    "Inpaint & Enhance",
     "Paths",
 )
 
@@ -179,6 +180,74 @@ KEY_DOCS: dict[str, KeyDoc] = {
         "Downloads & Cache", "dict[string,string]", "Embedding filename → URL download map."
     ),
     "vae_downloads": KeyDoc("Downloads & Cache", "dict[string,string]", "VAE filename → URL download map."),
+    # Inpaint & Enhance
+    "default_inpaint_engine_version": KeyDoc(
+        "Inpaint & Enhance",
+        "string",
+        "Default inpaint engine version.",
+        "None | v1 | v2.5 | v2.6",
+    ),
+    "default_inpaint_method": KeyDoc(
+        "Inpaint & Enhance",
+        "string",
+        "Default inpaint method selected in the UI.",
+        "Inpaint or Outpaint (default) | Improve Detail (face, hand, eyes, etc.) | Modify Content (add objects, change background, etc.)",  # noqa: E501
+    ),
+    "default_inpaint_advanced_masking_checkbox": KeyDoc(
+        "Inpaint & Enhance",
+        "bool",
+        "Expand advanced masking controls by default.",
+    ),
+    "default_inpaint_mask_model": KeyDoc(
+        "Inpaint & Enhance",
+        "string",
+        "Mask-generation model used for inpainting.",
+        "u2net | u2netp | u2net_human_seg | u2net_cloth_seg | silueta | isnet-general-use | isnet-anime | sam",
+    ),
+    "default_inpaint_mask_cloth_category": KeyDoc(
+        "Inpaint & Enhance",
+        "string",
+        "Cloth category for u2net_cloth_seg masking.",
+        "full | upper | lower",
+    ),
+    "default_inpaint_mask_sam_model": KeyDoc(
+        "Inpaint & Enhance",
+        "string",
+        "SAM model variant used for mask generation.",
+        "vit_b | vit_l | vit_h",
+    ),
+    "default_invert_mask_checkbox": KeyDoc(
+        "Inpaint & Enhance",
+        "bool",
+        "Invert the generated inpaint mask by default.",
+    ),
+    "default_enhance_checkbox": KeyDoc(
+        "Inpaint & Enhance",
+        "bool",
+        "Enable the enhance pipeline by default.",
+    ),
+    "default_enhance_inpaint_mask_model": KeyDoc(
+        "Inpaint & Enhance",
+        "string",
+        "Mask-generation model used by the enhance pipeline.",
+        "u2net | u2netp | u2net_human_seg | u2net_cloth_seg | silueta | isnet-general-use | isnet-anime | sam",
+    ),
+    "default_sam_max_detections": KeyDoc(
+        "Inpaint & Enhance",
+        "int",
+        "Maximum SAM detections allowed (0 = unlimited).",
+        "0 - 10",
+    ),
+    "example_inpaint_prompts": KeyDoc(
+        "Inpaint & Enhance",
+        "list[string]",
+        "Example prompts shown in the inpaint UI.",
+    ),
+    "example_enhance_detection_prompts": KeyDoc(
+        "Inpaint & Enhance",
+        "list[string]",
+        "Example detection prompts shown in the enhance UI.",
+    ),
     # Paths
     "paths_checkpoints": KeyDoc("Paths", "list[string]", "Directories searched for checkpoints."),
     "paths_loras": KeyDoc("Paths", "list[string]", "Directories searched for LoRAs."),
