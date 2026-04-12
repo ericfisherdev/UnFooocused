@@ -74,7 +74,28 @@ _DEFAULTS: dict[str, Any] = {
     "path_embeddings": "./models/embeddings",
     "path_outputs": "./outputs",
     "path_fast_checkpoints": "",
+    # UI / metadata / advanced (UNF-57)
+    "default_advanced_checkbox": False,
+    "default_developer_debug_mode_checkbox": False,
+    "default_black_out_nsfw": False,
+    "default_save_metadata_to_images": False,
+    "default_save_only_final_enhanced_image": False,
+    "default_metadata_scheme": "fooocus",
+    "metadata_created_by": "",
+    "default_describe_apply_prompts_checkbox": True,
+    "default_describe_content_type": ["Photograph"],
 }
+
+_VALID_METADATA_SCHEMES: frozenset[str] = frozenset({"fooocus", "a111", "comfy"})
+_VALID_DESCRIBE_CONTENT_TYPES: frozenset[str] = frozenset({"Photograph", "Art/Anime"})
+_UI_ADVANCED_BOOL_KEYS: tuple[str, ...] = (
+    "default_advanced_checkbox",
+    "default_developer_debug_mode_checkbox",
+    "default_black_out_nsfw",
+    "default_save_metadata_to_images",
+    "default_save_only_final_enhanced_image",
+    "default_describe_apply_prompts_checkbox",
+)
 
 
 def load_config(
@@ -127,6 +148,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     _validate_sampling_config(config)
     _validate_image_gen_config(config)
     _validate_vae_perf_config(config)
+    _validate_ui_metadata_config(config)
 
 
 _LORA_WEIGHT_BOUND: float = 10.0
@@ -334,6 +356,38 @@ def _validate_vae_perf_config(config: dict[str, Any]) -> None:
     _validate_overwrite_upscale(config, "default_overwrite_upscale")
 
 
+def _validate_ui_metadata_config(config: dict[str, Any]) -> None:
+    """Validate UI / metadata / advanced config keys (UNF-57)."""
+    for key in _UI_ADVANCED_BOOL_KEYS:
+        value = config.get(key)
+        if not isinstance(value, bool):
+            raise ValueError(f"config.txt: {key} must be a boolean, got {value!r}")
+
+    scheme = config.get("default_metadata_scheme")
+    if not isinstance(scheme, str):
+        raise ValueError(f"config.txt: default_metadata_scheme must be a string, got {scheme!r}")
+    if scheme not in _VALID_METADATA_SCHEMES:
+        raise ValueError(
+            f"config.txt: default_metadata_scheme={scheme!r} must be one of {sorted(_VALID_METADATA_SCHEMES)}"
+        )
+
+    created_by = config.get("metadata_created_by")
+    if not isinstance(created_by, str):
+        raise ValueError(f"config.txt: metadata_created_by must be a string, got {created_by!r}")
+
+    content_types = config.get("default_describe_content_type")
+    if not isinstance(content_types, list):
+        raise ValueError("config.txt: default_describe_content_type must be a list of strings")
+    for entry in content_types:
+        if not isinstance(entry, str):
+            raise ValueError(f"config.txt: default_describe_content_type entries must be strings, got {entry!r}")
+        if entry not in _VALID_DESCRIBE_CONTENT_TYPES:
+            raise ValueError(
+                f"config.txt: default_describe_content_type entry {entry!r} must be one of "
+                f"{sorted(_VALID_DESCRIBE_CONTENT_TYPES)}"
+            )
+
+
 def _require_finite_number(config: dict[str, Any], key: str) -> float:
     """Return *config[key]* as float, raising ValueError unless finite and numeric."""
     value = config.get(key)
@@ -436,6 +490,17 @@ class AppConfig:
     path_outputs: str
     path_fast_checkpoints: str
 
+    # UI / metadata / advanced (UNF-57)
+    default_advanced_checkbox: bool
+    default_developer_debug_mode_checkbox: bool
+    default_black_out_nsfw: bool
+    default_save_metadata_to_images: bool
+    default_save_only_final_enhanced_image: bool
+    default_metadata_scheme: str
+    metadata_created_by: str
+    default_describe_apply_prompts_checkbox: bool
+    default_describe_content_type: tuple[str, ...]
+
     # Discovered model files
     model_filenames: tuple[str, ...]
     lora_filenames: tuple[str, ...]
@@ -494,6 +559,15 @@ class AppConfig:
             path_embeddings=raw["path_embeddings"],
             path_outputs=raw["path_outputs"],
             path_fast_checkpoints=raw.get("path_fast_checkpoints", ""),
+            default_advanced_checkbox=bool(raw["default_advanced_checkbox"]),
+            default_developer_debug_mode_checkbox=bool(raw["default_developer_debug_mode_checkbox"]),
+            default_black_out_nsfw=bool(raw["default_black_out_nsfw"]),
+            default_save_metadata_to_images=bool(raw["default_save_metadata_to_images"]),
+            default_save_only_final_enhanced_image=bool(raw["default_save_only_final_enhanced_image"]),
+            default_metadata_scheme=raw["default_metadata_scheme"],
+            metadata_created_by=raw["metadata_created_by"],
+            default_describe_apply_prompts_checkbox=bool(raw["default_describe_apply_prompts_checkbox"]),
+            default_describe_content_type=tuple(raw["default_describe_content_type"]),
             model_filenames=tuple(_discover_files(paths_checkpoints)),
             lora_filenames=tuple(_discover_files(paths_loras)),
         )
