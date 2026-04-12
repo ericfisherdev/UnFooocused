@@ -254,6 +254,10 @@ class TestAppConfigDirectConstruction:
             default_describe_apply_prompts_checkbox=True,
             default_describe_content_type=("Photograph",),
             base_model_preset="SDXL",
+            checkpoint_downloads={},
+            lora_downloads={},
+            embeddings_downloads={},
+            vae_downloads={},
             model_filenames=(),
             lora_filenames=(),
         )
