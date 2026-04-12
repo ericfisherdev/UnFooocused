@@ -93,6 +93,11 @@ document.addEventListener("alpine:init", () => {
 
         startStroke(event) {
             if (!this._maskCtx) return;
+            const canvas = this.$refs.inpaintCanvas;
+            if (typeof event.pointerId === "number") {
+                canvas?.setPointerCapture?.(event.pointerId);
+                this._pointerId = event.pointerId;
+            }
             const { x, y } = this._canvasCoords(event);
             this._drawing = true;
             this._lastX = x;
@@ -102,6 +107,7 @@ document.addEventListener("alpine:init", () => {
 
         drawStroke(event) {
             if (!this._drawing || !this._maskCtx) return;
+            if (typeof this._pointerId === "number" && event.pointerId !== this._pointerId) return;
             const { x, y } = this._canvasCoords(event);
             this._paintLine(this._lastX, this._lastY, x, y);
             this._lastX = x;
@@ -111,6 +117,11 @@ document.addEventListener("alpine:init", () => {
         endStroke() {
             if (!this._drawing) return;
             this._drawing = false;
+            const canvas = this.$refs.inpaintCanvas;
+            if (typeof this._pointerId === "number") {
+                canvas?.releasePointerCapture?.(this._pointerId);
+                this._pointerId = null;
+            }
             this._dispatchInpaint();
         },
 

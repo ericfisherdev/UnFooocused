@@ -94,10 +94,11 @@
             <canvas x-ref="inpaintCanvas"
                     class="input-image__canvas"
                     data-testid="inpaint-mask-canvas"
-                    @mousedown="startStroke($event)"
-                    @mousemove="drawStroke($event)"
-                    @mouseup.window="endStroke()"
-                    @mouseleave="endStroke()"></canvas>
+                    @pointerdown="startStroke($event)"
+                    @pointermove="drawStroke($event)"
+                    @pointerup.window="endStroke()"
+                    @pointercancel.window="endStroke()"
+                    @pointerleave="endStroke()"></canvas>
             <div class="input-image__brush-controls">
                 <label class="text-label" for="inpaint-brush-size">Brush size</label>
                 <input id="inpaint-brush-size"
