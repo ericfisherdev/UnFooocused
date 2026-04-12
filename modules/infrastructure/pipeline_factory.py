@@ -61,7 +61,7 @@ def _cuda_available() -> bool:
         # Force CUDA context initialization to catch OOM early
         torch.cuda.current_device()
         return True
-    except Exception:
+    except RuntimeError:
         return False
 
 
