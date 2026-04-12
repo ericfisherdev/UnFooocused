@@ -445,12 +445,15 @@ class Worker:
             parsed_parameters=parsed_parameters,
         )
 
-        self._write_log_entry(
-            filepath=filepath,
-            filename=filename,
-            date_string=date_string,
-            metadata=metadata,
-        )
+        try:
+            self._write_log_entry(
+                filepath=filepath,
+                filename=filename,
+                date_string=date_string,
+                metadata=metadata,
+            )
+        except OSError:
+            logger.exception("Failed to update HTML log for saved image: %s", filepath)
 
         return filepath
 

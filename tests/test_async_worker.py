@@ -512,6 +512,27 @@ class TestWorkerHtmlLogWriting:
         # Should have 2 image entries (image_number=2)
         assert content.count('class="image-container"') == 2
 
+    def test_log_write_oserror_does_not_abort_generation(self, tmp_path, monkeypatch):
+        """Log write OSError is caught so saved images are still returned."""
+        from modules.async_worker import AsyncTask, Worker
+
+        def _boom(**_kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("modules.html_log_writer.write_log_entry", _boom)
+
+        task = AsyncTask(_minimal_args_list())
+        worker = Worker(output_dir=str(tmp_path))
+        # Should not raise — OSError from log write must be swallowed so
+        # successful image saves are not lost to logging failures.
+        worker.process_task(task)
+
+        # Image files should still exist even though log write failed
+        subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        assert subdirs, "date-based subdirectory should be created"
+        images = list(subdirs[0].glob("*.png"))
+        assert images, "saved images should exist despite log write failures"
+
 
 # ---------------------------------------------------------------------------
 # Model and LoRA logging (stub behavior)
