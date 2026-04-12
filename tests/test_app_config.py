@@ -99,6 +99,8 @@ class TestAppConfigConstruction:
             "default_prompt_negative",
             "default_styles",
             "default_cfg_scale",
+            "default_cfg_tsnr",
+            "default_clip_skip",
             "default_sample_sharpness",
             "default_sampler",
             "default_scheduler",
@@ -117,6 +119,44 @@ class TestAppConfigConstruction:
         ]
         missing = [a for a in expected_attrs if not hasattr(cfg, a)]
         assert not missing, f"AppConfig missing attributes: {missing}"
+
+    def test_sampling_fields_typed(self, tmp_path):
+        """UNF-53: sampling-related fields have correct types."""
+        from modules.config import AppConfig, load_config
+
+        raw = load_config(config_path=tmp_path / "config.txt")
+        cfg = AppConfig.from_dict(raw)
+        assert isinstance(cfg.default_cfg_tsnr, float)
+        assert isinstance(cfg.default_clip_skip, int)
+        assert isinstance(cfg.default_sampler, str)
+        assert isinstance(cfg.default_scheduler, str)
+        assert isinstance(cfg.default_sample_sharpness, float)
+
+    def test_custom_sampling_values_from_dict(self, tmp_path):
+        """UNF-53: overriding sampling config values propagates into AppConfig."""
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_sampler": "euler",
+                    "default_scheduler": "exponential",
+                    "default_cfg_scale": 8.5,
+                    "default_cfg_tsnr": 6.5,
+                    "default_sample_sharpness": 1.5,
+                    "default_clip_skip": 3,
+                }
+            )
+        )
+        from modules.config import AppConfig, load_config
+
+        raw = load_config(config_path=config_file)
+        cfg = AppConfig.from_dict(raw)
+        assert cfg.default_sampler == "euler"
+        assert cfg.default_scheduler == "exponential"
+        assert cfg.default_cfg_scale == pytest.approx(8.5)
+        assert cfg.default_cfg_tsnr == pytest.approx(6.5)
+        assert cfg.default_sample_sharpness == pytest.approx(1.5)
+        assert cfg.default_clip_skip == 3
 
 
 class TestAppConfigFrozen:
@@ -152,7 +192,9 @@ class TestAppConfigDirectConstruction:
             default_prompt="",
             default_prompt_negative="",
             default_styles=(),
-            default_cfg_scale=4.0,
+            default_cfg_scale=7.0,
+            default_cfg_tsnr=7.0,
+            default_clip_skip=2,
             default_sample_sharpness=2.0,
             default_sampler="dpmpp_2m_sde_gpu",
             default_scheduler="karras",

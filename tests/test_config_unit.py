@@ -398,3 +398,142 @@ class TestAppConfigModelRefinerFields:
         cfg = AppConfig.from_dict(raw)
         assert cfg.default_base_model == "sdxl"
         assert cfg.previous_default_models == ("old1.safetensors", "old2.safetensors")
+
+
+class TestSamplingConfigDefaults:
+    """UNF-53: Sampling/generation config keys exist with correct defaults."""
+
+    def test_default_cfg_tsnr_present(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["default_cfg_tsnr"] == pytest.approx(7.0)
+
+    def test_default_clip_skip_present(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["default_clip_skip"] == 2
+
+    def test_default_cfg_scale_default_is_seven(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["default_cfg_scale"] == pytest.approx(7.0)
+
+    def test_default_sampler_default_is_dpmpp_2m_sde_gpu(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["default_sampler"] == "dpmpp_2m_sde_gpu"
+
+    def test_default_scheduler_default_is_karras(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["default_scheduler"] == "karras"
+
+    def test_default_sample_sharpness_default_is_two(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["default_sample_sharpness"] == pytest.approx(2.0)
+
+
+class TestSamplingConfigOverrides:
+    """UNF-53: Sampling config values can be overridden via config.txt."""
+
+    def test_custom_cfg_tsnr(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(json.dumps({"default_cfg_tsnr": 5.5}))
+        from modules.config import load_config
+
+        result = load_config(config_path=config_file)
+        assert result["default_cfg_tsnr"] == pytest.approx(5.5)
+
+    def test_custom_clip_skip(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(json.dumps({"default_clip_skip": 4}))
+        from modules.config import load_config
+
+        result = load_config(config_path=config_file)
+        assert result["default_clip_skip"] == 4
+
+    def test_custom_sampler_valid(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(json.dumps({"default_sampler": "euler"}))
+        from modules.config import load_config
+
+        result = load_config(config_path=config_file)
+        assert result["default_sampler"] == "euler"
+
+    def test_custom_scheduler_valid(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(json.dumps({"default_scheduler": "exponential"}))
+        from modules.config import load_config
+
+        result = load_config(config_path=config_file)
+        assert result["default_scheduler"] == "exponential"
+
+
+class TestSamplingConfigValidation:
+    """UNF-53: Invalid sampling config values raise ValueError with helpful messages."""
+
+    def test_raises_on_unknown_sampler(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_sampler": "bogus_sampler"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError) as excinfo:
+            load_config(config_path=tmp_path / "config.txt")
+        msg = str(excinfo.value)
+        assert "default_sampler" in msg
+        assert "bogus_sampler" in msg
+        # Error lists valid options so users can fix it
+        assert "euler" in msg
+        assert "dpmpp_2m_sde_gpu" in msg
+
+    def test_raises_on_unknown_scheduler(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_scheduler": "nonsense"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError) as excinfo:
+            load_config(config_path=tmp_path / "config.txt")
+        msg = str(excinfo.value)
+        assert "default_scheduler" in msg
+        assert "nonsense" in msg
+        assert "karras" in msg
+        assert "normal" in msg
+
+    def test_raises_on_clip_skip_below_min(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_clip_skip": 0}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_clip_skip"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_on_clip_skip_above_max(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_clip_skip": 13}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_clip_skip"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_on_clip_skip_non_int(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_clip_skip": "two"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_clip_skip"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_on_cfg_tsnr_non_numeric(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_cfg_tsnr": "high"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_cfg_tsnr"):
+            load_config(config_path=tmp_path / "config.txt")
