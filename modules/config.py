@@ -126,7 +126,9 @@ _LORA_WEIGHT_BOUND: float = 10.0
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool)
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return False
+    return math.isfinite(value)
 
 
 def _validate_lora_entry(index: int, entry: Any) -> None:
@@ -138,7 +140,7 @@ def _validate_lora_entry(index: int, entry: Any) -> None:
     if not isinstance(filename, str):
         raise ValueError(f"config.txt: default_loras[{index}] filename must be a string")
     if not _is_number(weight):
-        raise ValueError(f"config.txt: default_loras[{index}] weight must be a number")
+        raise ValueError(f"config.txt: default_loras[{index}] weight must be a finite number")
 
 
 def _validate_lora_weight_bound(key: str, value: Any) -> None:
