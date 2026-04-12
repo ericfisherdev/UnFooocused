@@ -559,3 +559,27 @@ class TestSamplingConfigValidation:
 
         with pytest.raises(ValueError, match="default_sample_sharpness"):
             load_config(config_path=tmp_path / "config.txt")
+
+    @pytest.mark.parametrize(
+        "key",
+        ["default_cfg_tsnr", "default_cfg_scale", "default_sample_sharpness"],
+    )
+    def test_rejects_non_finite_numeric_fields(self, tmp_path, key):
+        # JSON spec has no NaN/Infinity, so write the raw literal that
+        # Python's json.loads accepts by default.
+        (tmp_path / "config.txt").write_text("{" + f'"{key}": NaN' + "}")
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=tmp_path / "config.txt")
+
+    @pytest.mark.parametrize(
+        "key",
+        ["default_cfg_tsnr", "default_cfg_scale", "default_sample_sharpness"],
+    )
+    def test_rejects_infinity_numeric_fields(self, tmp_path, key):
+        (tmp_path / "config.txt").write_text("{" + f'"{key}": Infinity' + "}")
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=tmp_path / "config.txt")
