@@ -86,16 +86,17 @@ def compute_initial_bounds(mask: NDArray[np.bool_]) -> InterestedArea:
     left_raw = int(indices[1].min())
     right_raw = int(indices[1].max())
 
-    vertical_mid = (bottom_raw + top_raw) // 2
-    horizontal_mid = (right_raw + left_raw) // 2
-    vertical_half = (bottom_raw - top_raw) // 2
-    horizontal_half = (right_raw - left_raw) // 2
-    half_extent = int(max(vertical_half, horizontal_half) * INITIAL_BOUNDS_PADDING)
+    raw_h = bottom_raw - top_raw + 1
+    raw_w = right_raw - left_raw + 1
+    target_side = int(np.ceil(max(raw_h, raw_w) * INITIAL_BOUNDS_PADDING))
 
-    top = _clamp(vertical_mid - half_extent, 0, h)
-    bottom = _clamp(vertical_mid + half_extent + 1, 0, h)
-    left = _clamp(horizontal_mid - half_extent, 0, w)
-    right = _clamp(horizontal_mid + half_extent + 1, 0, w)
+    pad_h = max(0, target_side - raw_h)
+    pad_w = max(0, target_side - raw_w)
+
+    top = _clamp(top_raw - pad_h // 2, 0, h)
+    bottom = _clamp(bottom_raw + (pad_h - pad_h // 2) + 1, 0, h)
+    left = _clamp(left_raw - pad_w // 2, 0, w)
+    right = _clamp(right_raw + (pad_w - pad_w // 2) + 1, 0, w)
     return InterestedArea(top=top, bottom=bottom, left=left, right=right)
 
 

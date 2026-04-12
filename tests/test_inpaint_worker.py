@@ -61,6 +61,24 @@ class TestComputeInitialBounds:
         vertical_margin_bottom = area.bottom - 100
         assert abs(vertical_margin_top - vertical_margin_bottom) <= 1
 
+    def test_2x2_mask_fully_covered(self) -> None:
+        """Regression: even-sized masks must be fully contained in the returned bounds."""
+        mask = _mask_with_rect((50, 50), 20, 22, 20, 22)
+        area = compute_initial_bounds(mask > 0)
+        assert area.top <= 20
+        assert area.bottom >= 22
+        assert area.left <= 20
+        assert area.right >= 22
+
+    def test_4x4_mask_fully_covered(self) -> None:
+        """Regression: 4x4 even-sized mask must be fully contained in the returned bounds."""
+        mask = _mask_with_rect((50, 50), 10, 14, 10, 14)
+        area = compute_initial_bounds(mask > 0)
+        assert area.top <= 10
+        assert area.bottom >= 14
+        assert area.left <= 10
+        assert area.right >= 14
+
 
 class TestExpandBoundsToMinRatio:
     def test_k_one_returns_full_image(self) -> None:
