@@ -139,6 +139,8 @@ class TestAppConfigDirectConstruction:
 
         cfg = AppConfig(
             default_base_model_name="test_model.safetensors",
+            default_base_model=None,
+            previous_default_models=(),
             default_refiner_model_name="None",
             default_refiner_switch=0.5,
             default_performance="Speed",

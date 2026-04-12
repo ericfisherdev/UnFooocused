@@ -25,8 +25,10 @@ _DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[1] / "config.txt"
 
 _DEFAULTS: dict[str, Any] = {
     "default_model": "juggernautXL_v8Rundiffusion.safetensors",
+    "default_base_model": None,
     "default_refiner": "None",
     "default_refiner_switch": 0.5,
+    "previous_default_models": [],
     "default_performance": "Speed",
     "default_aspect_ratio": "1152*896",
     "available_aspect_ratios": sdxl_aspect_ratios,
@@ -111,6 +113,28 @@ def _validate_config(config: dict[str, Any]) -> None:
         raise ValueError("config.txt: path_fast_checkpoints must be a string path")
     if config["default_loras_min_weight"] >= config["default_loras_max_weight"]:
         raise ValueError("config.txt: default_loras_min_weight must be < default_loras_max_weight")
+    _validate_model_refiner_config(config)
+
+
+def _validate_model_refiner_config(config: dict[str, Any]) -> None:
+    """Validate model, refiner, and model-history config keys (UNF-52)."""
+    if not isinstance(config.get("default_model"), str):
+        raise ValueError("config.txt: default_model must be a string filename")
+    if not isinstance(config.get("default_refiner"), str):
+        raise ValueError("config.txt: default_refiner must be a string filename or 'None'")
+
+    switch = config.get("default_refiner_switch")
+    if not isinstance(switch, int | float) or isinstance(switch, bool):
+        raise ValueError("config.txt: default_refiner_switch must be a number in [0, 1]")
+    if not 0.0 <= float(switch) <= 1.0:
+        raise ValueError("config.txt: default_refiner_switch must be in [0, 1]")
+
+    base_model = config.get("default_base_model")
+    if base_model is not None and not isinstance(base_model, str):
+        raise ValueError("config.txt: default_base_model must be a string or null")
+
+    if not isinstance(config.get("previous_default_models"), list):
+        raise ValueError("config.txt: previous_default_models must be a list of filenames")
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +187,8 @@ class AppConfig:
 
     # Generation defaults
     default_base_model_name: str
+    default_base_model: str | None
+    previous_default_models: tuple[str, ...]
     default_refiner_model_name: str
     default_refiner_switch: float
     default_performance: str
@@ -216,6 +242,8 @@ class AppConfig:
 
         return cls(
             default_base_model_name=raw["default_model"],
+            default_base_model=raw.get("default_base_model"),
+            previous_default_models=tuple(raw.get("previous_default_models", [])),
             default_refiner_model_name=raw["default_refiner"],
             default_refiner_switch=float(raw["default_refiner_switch"]),
             default_performance=raw["default_performance"],
