@@ -1466,6 +1466,45 @@ class TestDirectoryPathConfig:
         assert (tmp_path / "sentinel.txt").exists()
         assert any("unsafe" in rec.message for rec in caplog.records)
 
+    def test_cleanup_temp_path_iterdir_error_is_best_effort(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        from modules.config import cleanup_temp_path
+
+        temp = tmp_path / "temp"
+        temp.mkdir()
+
+        def boom(self):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr("pathlib.Path.iterdir", boom)
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            cleanup_temp_path(str(temp))
+        assert any("failed to enumerate" in rec.message for rec in caplog.records)
+
+    def test_cleanup_temp_path_expands_tilde(self, tmp_path, monkeypatch):
+        from modules.config import cleanup_temp_path
+
+        home = tmp_path / "home"
+        (home / "temp").mkdir(parents=True)
+        (home / "temp" / "stale.txt").write_text("stale")
+        monkeypatch.setenv("HOME", str(home))
+        cleanup_temp_path("~/temp")
+        assert (home / "temp").is_dir()
+        assert list((home / "temp").iterdir()) == []
+
+    def test_warn_missing_paths_expands_tilde(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        from modules.config import load_config
+
+        home = tmp_path / "home"
+        (home / "real_vae").mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            load_config(config_path=self._write(tmp_path, {"path_vae": "~/real_vae"}))
+        assert not any("path_vae=" in rec.message and "does not exist" in rec.message for rec in caplog.records)
+
     def test_cleanup_temp_path_refuses_ancestor_of_cwd(self, tmp_path, monkeypatch, caplog):
         import logging
 
