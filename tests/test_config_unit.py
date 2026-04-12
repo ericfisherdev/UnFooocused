@@ -1564,6 +1564,16 @@ class TestDownloadCacheConfig:
         with pytest.raises(ValueError, match=key):
             load_config(config_path=self._write(tmp_path, {key: {"model.safetensors": 123}}))
 
+    @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
+    def test_non_string_filename_key_rejected(self, key):
+        """Validator rejects non-string filename keys (JSON coerces ints, so test directly)."""
+        from modules.config import _DEFAULTS, _validate_download_config
+
+        config = dict(_DEFAULTS)
+        config[key] = {42: "https://example.com/model.safetensors"}
+        with pytest.raises(ValueError, match=key):
+            _validate_download_config(config)
+
 
 class TestPlanMissingDownloads:
     """UNF-60: queue missing files for download on startup."""
@@ -1591,6 +1601,15 @@ class TestPlanMissingDownloads:
                 target_dir=tmp_path,
             ),
         )
+
+    def test_directory_with_matching_name_is_not_a_file(self, tmp_path):
+        """A directory sharing the filename must not satisfy the existence check."""
+        from modules.config import plan_missing_downloads
+
+        (tmp_path / "model.safetensors").mkdir()
+        queue = plan_missing_downloads({"model.safetensors": "https://example.com/model.safetensors"}, tmp_path)
+        assert len(queue) == 1
+        assert queue[0].filename == "model.safetensors"
 
     def test_mixed_existing_and_missing(self, tmp_path):
         from modules.config import plan_missing_downloads
