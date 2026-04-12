@@ -75,6 +75,9 @@ class FakeTextEncoder:
         self.encode_calls.append((list(texts), clip_skip))
         return [["fake_cond", {"pooled_output": "fake"}]]
 
+    def set_clip(self, clip: Any) -> None:
+        pass
+
     def clear_cache(self) -> None:
         self.clear_cache_calls += 1
 

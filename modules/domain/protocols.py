@@ -178,6 +178,17 @@ class TextEncoder(Protocol):
         """
         ...
 
+    def set_clip(self, clip: Any) -> None:
+        """Update the CLIP model reference.
+
+        Called after checkpoint or LoRA loading to point the encoder
+        at the current (possibly LoRA-patched) CLIP model.
+
+        Args:
+            clip: A CLIP model instance.
+        """
+        ...
+
     def clear_cache(self) -> None:
         """Discard all cached conditioning results.
 

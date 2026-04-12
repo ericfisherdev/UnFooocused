@@ -39,9 +39,9 @@ def build_pipeline() -> Any | None:
 
     try:
         return _build_pipeline_from_ldm()
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         logger.warning(
-            "Failed to build DiffusionPipeline — falling back to stub mode",
+            "ldm_patched unavailable — falling back to stub mode",
             exc_info=True,
         )
         return None

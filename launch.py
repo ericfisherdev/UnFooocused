@@ -20,34 +20,32 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
-os.chdir(ROOT)
+
+
+def _parse_launch_args() -> argparse.Namespace:
+    """Parse CLI arguments for host and port binding."""
+    parser = argparse.ArgumentParser(description="UnFooocused — SDXL image generation server")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=7866, help="Port number (default: 7866)")
+    return parser.parse_args()
+
 
 # ---------------------------------------------------------------------------
-# 2. Parse CLI arguments (before any heavy imports)
-# ---------------------------------------------------------------------------
-
-parser = argparse.ArgumentParser(description="UnFooocused — SDXL image generation server")
-parser.add_argument("--host", type=str, default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
-parser.add_argument("--port", type=int, default=7866, help="Port number (default: 7866)")
-args = parser.parse_args()
-
-# ---------------------------------------------------------------------------
-# 3. Configure ldm_patched args BEFORE any ldm_patched import
-#
-#    model_management.py reads these at module scope to decide VRAM strategy.
-#    Must happen before the first `import ldm_patched.modules.*`.
-# ---------------------------------------------------------------------------
-
-from ldm_patched.modules.args_parser import args as ldm_args  # noqa: E402
-
-ldm_args.disable_async_cuda_allocation = True
-ldm_args.always_offload_from_vram = True
-
-# ---------------------------------------------------------------------------
-# 4. Start the server
+# Start the server — all side effects deferred to __main__
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    os.chdir(ROOT)
+
+    args = _parse_launch_args()
+
+    # Configure ldm_patched args BEFORE any ldm_patched import.
+    # model_management.py reads these at module scope to decide VRAM strategy.
+    from ldm_patched.modules.args_parser import args as ldm_args
+
+    ldm_args.disable_async_cuda_allocation = True
+    ldm_args.always_offload_from_vram = True
+
     import uvicorn
 
     print(f"[UnFooocused] Starting server on http://{args.host}:{args.port}")
