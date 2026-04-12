@@ -39,7 +39,7 @@ class InpaintModelPaths:
     patch_path: Path | None
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class InpaintModelLoader:
     """Ensures inpaint models are present on disk, downloading only missing files."""
 

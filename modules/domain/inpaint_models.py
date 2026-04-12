@@ -91,7 +91,7 @@ class InpaintHead(torch.nn.Module):
 
     def __init__(self) -> None:
         super().__init__()
-        self.head = torch.nn.Parameter(torch.empty(size=(320, 5, 3, 3)))
+        self.head = torch.nn.Parameter(torch.zeros(320, 5, 3, 3))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = torch.nn.functional.pad(x, (1, 1, 1, 1), "replicate")
