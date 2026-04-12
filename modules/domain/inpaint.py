@@ -31,7 +31,7 @@ FOOOCUS_FILL_SCHEDULE: tuple[tuple[int, int], ...] = (
     (5, 16),
     (3, 16),
 )
-"""Multi-scale box-blur schedule ported from FwdFooocus InpaintWorker."""
+"""Multi-scale box-blur schedule ported from the original InpaintWorker implementation."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +74,7 @@ def compute_initial_bounds(mask: NDArray[np.bool_]) -> InterestedArea:
     """Compute a symmetric square-ish bounding box centred on the mask region.
 
     The returned box expands the raw bbox of truthy mask pixels by ~15% and is
-    clamped to the mask shape. Mirrors FwdFooocus `compute_initial_abcd`.
+    clamped to the mask shape. Mirrors `compute_initial_abcd` in the upstream inpainting reference.
     """
     indices = np.where(mask)
     if indices[0].size == 0:
@@ -104,7 +104,7 @@ def expand_bounds_to_min_ratio(area: InterestedArea, shape: tuple[int, ...], k: 
 
     k==1.0 returns the full image; k==0.0 returns `area` unchanged. Expansion
     alternates between the smaller axis to keep the box approximately square.
-    Ported from FwdFooocus `solve_abcd`.
+    Ported from the upstream `solve_abcd` inpainting helper.
     """
     if not 0.0 <= k <= 1.0:
         raise ValueError(f"k must be in [0.0, 1.0], got {k}")
@@ -159,7 +159,7 @@ def color_correct(
     """Alpha-blend foreground over background using mask as a soft matte.
 
     mask is expected to be uint8 in [0, 255]. Output is clipped and cast to
-    uint8. Mirrors FwdFooocus `InpaintWorker.color_correction`.
+    uint8. Mirrors `InpaintWorker.color_correction` from the upstream inpainting reference.
     """
     weight = (mask.astype(np.float32) / 255.0)[..., None]
     fg = foreground.astype(np.float32)
@@ -179,7 +179,7 @@ def fooocus_fill(
     For each (radius, repeats) step in `schedule`, apply `blur_fn(image, radius)`
     then restore the original unmasked pixels. Produces smooth colour bleed
     into the masked region, seeding the inpaint diffusion pass. Mirrors the
-    FwdFooocus `fooocus_fill` algorithm.
+    upstream `fooocus_fill` algorithm.
     """
     current = image.copy()
     unmasked_coords = np.where(mask < 127)
