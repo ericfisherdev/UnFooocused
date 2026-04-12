@@ -19,6 +19,7 @@ document.addEventListener("alpine:init", () => {
         _maskCtx: null,
         _imgCtx: null,
         _baseCanvas: null,
+        _sourceImage: null,
 
         init() {
             this.$watch("inpaintImage", (value) => {
@@ -64,6 +65,9 @@ document.addEventListener("alpine:init", () => {
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0);
                 this._imgCtx = ctx;
+                // Cache decoded source so _redrawComposite draws synchronously
+                // and avoids per-stroke Image.onload races.
+                this._sourceImage = img;
 
                 // Off-screen mask canvas — transparent by default, paint white.
                 const mask = document.createElement("canvas");
@@ -139,17 +143,13 @@ document.addEventListener("alpine:init", () => {
 
         _redrawComposite() {
             const canvas = this.$refs.inpaintCanvas;
-            if (!canvas || !this._baseCanvas) return;
+            if (!canvas || !this._baseCanvas || !this._sourceImage) return;
             const ctx = canvas.getContext("2d");
-            const img = new Image();
-            img.onload = () => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-                ctx.globalAlpha = 0.5;
-                ctx.drawImage(this._baseCanvas, 0, 0);
-                ctx.globalAlpha = 1.0;
-            };
-            img.src = this.inpaintImage;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(this._sourceImage, 0, 0);
+            ctx.globalAlpha = 0.5;
+            ctx.drawImage(this._baseCanvas, 0, 0);
+            ctx.globalAlpha = 1.0;
         },
 
         _dispatchInpaint() {

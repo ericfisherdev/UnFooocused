@@ -52,6 +52,15 @@ class TestInputImageTemplate:
     def test_input_image_component_registered(self, html: str) -> None:
         assert "input-image-tabs.js" in html
 
+    @pytest.mark.parametrize("slug", ["uov", "ip", "inpaint"])
+    def test_tabpanel_aria_labelledby_matches_tab_id(self, html: str, slug: str) -> None:
+        btn_id = f'id="input-image-tab-{slug}-btn"'
+        panel_labelled = f'aria-labelledby="input-image-tab-{slug}-btn"'
+        aria_controls = f'aria-controls="input-image-panel-{slug}"'
+        assert btn_id in html
+        assert panel_labelled in html
+        assert aria_controls in html
+
 
 class TestGenerateArgsForwardsInputImages:
     """``_build_generate_args`` must forward inpaint + uov payloads from
