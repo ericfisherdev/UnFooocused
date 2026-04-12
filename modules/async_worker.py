@@ -341,7 +341,7 @@ class Worker:
 
         effective_seed = task.seed if task.disable_seed_increment else task.seed + image_index
         image = _generate_stub_image(task.width, task.height, effective_seed)
-        return self._save_generated_image(task, image)
+        return self._save_generated_image(task, image, effective_seed=effective_seed)
 
     def _generate_with_pipeline(
         self,
@@ -380,7 +380,7 @@ class Worker:
 
         # Convert numpy array to PIL Image and save
         image = _numpy_to_pil(results[0].image)
-        return self._save_generated_image(task, image)
+        return self._save_generated_image(task, image, effective_seed=effective_seed)
 
     def _yield_stub_step_progress(
         self,
@@ -404,33 +404,38 @@ class Worker:
             if not task.disable_preview:
                 task.yields.append(("preview", (percentage, text, None)))
 
-    def _save_generated_image(self, task: AsyncTask, image: Image) -> str:
-        """Save a generated image to the output directory.
+    def _save_generated_image(
+        self,
+        task: AsyncTask,
+        image: Image,
+        *,
+        effective_seed: int,
+    ) -> str:
+        """Save a generated image and write a log.html entry.
 
-        Creates the date-based subdirectory if it doesn't exist, then
-        delegates to ``modules.output.save_image()``.
+        Creates the date-based subdirectory if it doesn't exist, saves the
+        image via ``modules.output.save_image()``, then writes a
+        FwdFooocus-compatible log entry via ``modules.html_log_writer``.
+
+        Args:
+            task: The parent AsyncTask with generation parameters.
+            image: PIL Image to save.
+            effective_seed: The actual seed used for this specific image.
 
         Returns:
             Absolute path to the saved image file.
         """
         from modules.output import generate_temp_filename, save_image
 
-        _date_string, filepath, _filename = generate_temp_filename(
+        date_string, filepath, filename = generate_temp_filename(
             folder=self.output_dir,
             extension=task.output_format,
         )
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
-        if task.save_metadata_to_images:
-            metadata = [
-                ("Prompt", "prompt", task.prompt),
-                ("Steps", "steps", str(task.effective_steps)),
-            ]
-            parsed_parameters = f"{task.prompt}\nSteps: {task.effective_steps}"
-        else:
-            metadata = []
-            parsed_parameters = ""
+        metadata = _build_fooocus_metadata(task, effective_seed=effective_seed)
+        parsed_parameters = f"{task.prompt}\nSteps: {task.effective_steps}" if task.save_metadata_to_images else ""
 
         save_image(
             image=image,
@@ -440,7 +445,40 @@ class Worker:
             parsed_parameters=parsed_parameters,
         )
 
+        self._write_log_entry(
+            filepath=filepath,
+            filename=filename,
+            date_string=date_string,
+            metadata=metadata,
+        )
+
         return filepath
+
+    def _write_log_entry(
+        self,
+        *,
+        filepath: str,
+        filename: str,
+        date_string: str,
+        metadata: list[tuple[str, str, str]],
+    ) -> None:
+        """Write a FwdFooocus-compatible log entry for a saved image.
+
+        Args:
+            filepath: Absolute path to the saved image (used to find log dir).
+            filename: Image filename only (for HTML references).
+            date_string: YYYY-MM-DD date string for page title.
+            metadata: List of (label, key, value) triples.
+        """
+        from modules.html_log_writer import LogEntry, write_log_entry
+
+        html_path = os.path.join(os.path.dirname(filepath), "log.html")
+        entry = LogEntry(
+            image_filename=filename,
+            date_string=date_string,
+            metadata=metadata,
+        )
+        write_log_entry(html_path=html_path, entry=entry)
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +526,53 @@ def _make_cancel_check(task: AsyncTask) -> Callable[[], bool]:
         return task.last_stop == "stop"
 
     return check
+
+
+_UNFOOOCUSED_VERSION = "UnFooocused v0.1.0"
+
+
+def _build_fooocus_metadata(
+    task: AsyncTask,
+    *,
+    effective_seed: int,
+) -> list[tuple[str, str, str]]:
+    """Build FwdFooocus-compatible metadata triples for a generation.
+
+    Produces the same (label, key, value) fields that FwdFooocus writes
+    to its log.html, enabling cross-compatible log files.
+
+    Args:
+        task: The AsyncTask with all generation parameters.
+        effective_seed: The actual seed used for this specific image.
+
+    Returns:
+        List of (label, key, value) triples matching FwdFooocus format.
+    """
+    adm_guidance = str((task.adm_scaler_positive, task.adm_scaler_negative, task.adm_scaler_end))
+
+    metadata: list[tuple[str, str, str]] = [
+        ("Prompt", "prompt", task.prompt),
+        ("Negative Prompt", "negative_prompt", task.negative_prompt),
+        ("Steps", "steps", str(task.effective_steps)),
+        ("Resolution", "resolution", str((task.width, task.height))),
+        ("Guidance Scale", "guidance_scale", str(task.cfg_scale)),
+        ("Sharpness", "sharpness", str(task.sharpness)),
+        ("ADM Guidance", "adm_guidance", adm_guidance),
+        ("Base Model", "base_model", task.base_model_name),
+        ("Refiner Model", "refiner_model", task.refiner_model_name),
+        ("Refiner Switch", "refiner_switch", str(task.refiner_switch)),
+        ("Sampler", "sampler", task.sampler_name),
+        ("Scheduler", "scheduler", task.scheduler_name),
+        ("VAE", "vae", task.vae_name),
+        ("Seed", "seed", str(effective_seed)),
+    ]
+
+    for li, (lora_name, lora_weight) in enumerate(task.loras):
+        metadata.append((f"LoRA {li + 1}", f"lora_combined_{li + 1}", f"{lora_name} : {lora_weight}"))
+
+    metadata.append(("Version", "version", _UNFOOOCUSED_VERSION))
+
+    return metadata
 
 
 def _format_gpu_error(error_msg: str) -> str:
