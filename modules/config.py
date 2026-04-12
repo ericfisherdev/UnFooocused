@@ -181,9 +181,13 @@ def _require_finite_number(config: dict[str, Any], key: str) -> float:
     value = config.get(key)
     if not isinstance(value, int | float) or isinstance(value, bool):
         raise ValueError(f"config.txt: {key} must be a number, got {value!r}")
-    if not math.isfinite(value):
+    try:
+        converted = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"config.txt: {key} must be finite, got {value}") from exc
+    if not math.isfinite(converted):
         raise ValueError(f"config.txt: {key} must be finite, got {value}")
-    return float(value)
+    return converted
 
 
 # ---------------------------------------------------------------------------
