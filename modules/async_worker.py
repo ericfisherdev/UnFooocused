@@ -414,8 +414,8 @@ class Worker:
         """Save a generated image and write a log.html entry.
 
         Creates the date-based subdirectory if it doesn't exist, saves the
-        image via ``modules.output.save_image()``, then writes a
-        FwdFooocus-compatible log entry via ``modules.html_log_writer``.
+        image via ``modules.output.save_image()``, then writes a log entry
+        via ``modules.html_log_writer``.
 
         Args:
             task: The parent AsyncTask with generation parameters.
@@ -462,7 +462,7 @@ class Worker:
         date_string: str,
         metadata: list[tuple[str, str, str]],
     ) -> None:
-        """Write a FwdFooocus-compatible log entry for a saved image.
+        """Write an HTML log entry for a saved image.
 
         Args:
             filepath: Absolute path to the saved image (used to find log dir).
@@ -536,17 +536,17 @@ def _build_fooocus_metadata(
     *,
     effective_seed: int,
 ) -> list[tuple[str, str, str]]:
-    """Build FwdFooocus-compatible metadata triples for a generation.
+    """Build metadata triples for a generation log entry.
 
-    Produces the same (label, key, value) fields that FwdFooocus writes
-    to its log.html, enabling cross-compatible log files.
+    Produces the (label, key, value) fields written to log.html by
+    ``modules.html_log_writer``, enabling cross-compatible log files.
 
     Args:
         task: The AsyncTask with all generation parameters.
         effective_seed: The actual seed used for this specific image.
 
     Returns:
-        List of (label, key, value) triples matching FwdFooocus format.
+        List of (label, key, value) triples for the log entry.
     """
     adm_guidance = str((task.adm_scaler_positive, task.adm_scaler_negative, task.adm_scaler_end))
 
