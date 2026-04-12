@@ -251,18 +251,16 @@ class TestLoadConfigValidation:
 class TestModelRefinerConfig:
     """UNF-52: Model and refiner config options."""
 
-    def test_default_base_model_key_present(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_base_model_key_present(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "config.txt")
         assert "default_base_model" in result
 
-    def test_default_base_model_defaults_to_none(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_base_model_defaults_to_none(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "config.txt")
         assert result["default_base_model"] is None
 
     def test_default_base_model_reads_from_file(self, tmp_path):
@@ -273,20 +271,27 @@ class TestModelRefinerConfig:
         result = load_config(config_path=config_file)
         assert result["default_base_model"] == "sdxl"
 
-    def test_previous_default_models_present(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_previous_default_models_present(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "config.txt")
         assert "previous_default_models" in result
         assert isinstance(result["previous_default_models"], list)
 
-    def test_previous_default_models_defaults_empty(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_previous_default_models_defaults_empty(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "config.txt")
         assert result["previous_default_models"] == []
+
+    def test_defaults_not_mutated_across_calls(self, tmp_path):
+        """load_config() must return fresh mutable containers — no shared state."""
+        from modules.config import load_config
+
+        first = load_config(config_path=tmp_path / "config.txt")
+        first["previous_default_models"].append("leaked.safetensors")
+        second = load_config(config_path=tmp_path / "config.txt")
+        assert second["previous_default_models"] == []
 
     def test_previous_default_models_reads_from_file(self, tmp_path):
         config_file = tmp_path / "config.txt"
@@ -331,6 +336,13 @@ class TestModelRefinerConfig:
         with pytest.raises(ValueError, match="default_refiner_switch"):
             load_config(config_path=tmp_path / "config.txt")
 
+    def test_raises_when_refiner_switch_is_bool(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_refiner_switch": True}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_refiner_switch"):
+            load_config(config_path=tmp_path / "config.txt")
+
     def test_raises_when_previous_default_models_not_list(self, tmp_path):
         (tmp_path / "config.txt").write_text(json.dumps({"previous_default_models": "not-a-list"}))
         from modules.config import load_config
@@ -343,6 +355,13 @@ class TestModelRefinerConfig:
         from modules.config import load_config
 
         with pytest.raises(ValueError, match="default_base_model"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_previous_default_models_has_non_string(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"previous_default_models": ["ok.safetensors", 42]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="previous_default_models"):
             load_config(config_path=tmp_path / "config.txt")
 
 
