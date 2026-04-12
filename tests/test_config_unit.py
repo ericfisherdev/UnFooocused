@@ -1443,3 +1443,39 @@ class TestDirectoryPathConfig:
             )
         )
         assert (temp / "keep.txt").exists()
+
+    @pytest.mark.parametrize("unsafe", ["", " ", ".", "..", "/", "~"])
+    def test_cleanup_temp_path_refuses_unsafe_values(self, unsafe, caplog):
+        import logging
+
+        from modules.config import cleanup_temp_path
+
+        with caplog.at_level(logging.ERROR, logger="modules.config"):
+            cleanup_temp_path(unsafe)
+        assert any("unsafe" in rec.message for rec in caplog.records)
+
+    def test_cleanup_temp_path_refuses_cwd(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        from modules.config import cleanup_temp_path
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "sentinel.txt").write_text("keep")
+        with caplog.at_level(logging.ERROR, logger="modules.config"):
+            cleanup_temp_path(str(tmp_path))
+        assert (tmp_path / "sentinel.txt").exists()
+        assert any("unsafe" in rec.message for rec in caplog.records)
+
+    def test_cleanup_temp_path_refuses_ancestor_of_cwd(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        from modules.config import cleanup_temp_path
+
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        monkeypatch.chdir(sub)
+        (tmp_path / "sentinel.txt").write_text("keep")
+        with caplog.at_level(logging.ERROR, logger="modules.config"):
+            cleanup_temp_path(str(tmp_path))
+        assert (tmp_path / "sentinel.txt").exists()
+        assert any("unsafe" in rec.message for rec in caplog.records)

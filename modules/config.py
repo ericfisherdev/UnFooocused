@@ -185,8 +185,28 @@ def _warn_missing_paths(config: dict[str, Any]) -> None:
             logger.warning("config.txt: %s=%r does not exist on disk", key, value)
 
 
+_UNSAFE_TEMP_PATHS: frozenset[str] = frozenset({"", ".", "..", "/", "~"})
+
+
+def _is_safe_temp_path(temp_path: str) -> bool:
+    """Reject empty, root, cwd, and other destructive temp_path values (UNF-58)."""
+    if not isinstance(temp_path, str) or temp_path.strip() in _UNSAFE_TEMP_PATHS:
+        return False
+    try:
+        resolved = Path(temp_path).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return False
+    if resolved == resolved.parent:
+        return False
+    cwd = Path.cwd().resolve()
+    return not (resolved == cwd or cwd.is_relative_to(resolved))
+
+
 def cleanup_temp_path(temp_path: str) -> None:
     """Remove all contents of *temp_path* on launch (UNF-58)."""
+    if not _is_safe_temp_path(temp_path):
+        logger.error("refusing to clean temp_path=%r: unsafe or destructive value", temp_path)
+        return
     path = Path(temp_path)
     if path.is_symlink():
         logger.warning("refusing to clean temp_path=%r because it is a symlink", temp_path)
