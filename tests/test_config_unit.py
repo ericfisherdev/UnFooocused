@@ -246,3 +246,136 @@ class TestLoadConfigValidation:
 
         with pytest.raises(ValueError, match="loras_min_weight"):
             load_config(config_path=tmp_path / "config.txt")
+
+
+class TestModelRefinerConfig:
+    """UNF-52: Model and refiner config options."""
+
+    def test_default_base_model_key_present(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert "default_base_model" in result
+
+    def test_default_base_model_defaults_to_none(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["default_base_model"] is None
+
+    def test_default_base_model_reads_from_file(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(json.dumps({"default_base_model": "sdxl"}))
+        from modules.config import load_config
+
+        result = load_config(config_path=config_file)
+        assert result["default_base_model"] == "sdxl"
+
+    def test_previous_default_models_present(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert "previous_default_models" in result
+        assert isinstance(result["previous_default_models"], list)
+
+    def test_previous_default_models_defaults_empty(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from modules.config import load_config
+
+        result = load_config()
+        assert result["previous_default_models"] == []
+
+    def test_previous_default_models_reads_from_file(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(json.dumps({"previous_default_models": ["a.safetensors", "b.safetensors"]}))
+        from modules.config import load_config
+
+        result = load_config(config_path=config_file)
+        assert result["previous_default_models"] == ["a.safetensors", "b.safetensors"]
+
+    def test_raises_when_default_model_not_string(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_model": 42}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_model"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_default_refiner_not_string(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_refiner": 42}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_refiner"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_refiner_switch_below_zero(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_refiner_switch": -0.1}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_refiner_switch"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_refiner_switch_above_one(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_refiner_switch": 1.5}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_refiner_switch"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_refiner_switch_not_numeric(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_refiner_switch": "half"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_refiner_switch"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_previous_default_models_not_list(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"previous_default_models": "not-a-list"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="previous_default_models"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_default_base_model_wrong_type(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_base_model": 42}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_base_model"):
+            load_config(config_path=tmp_path / "config.txt")
+
+
+class TestAppConfigModelRefinerFields:
+    """UNF-52: new fields exposed on AppConfig for generation pipeline wiring."""
+
+    def test_app_config_has_default_base_model(self, tmp_path):
+        from modules.config import AppConfig, load_config
+
+        raw = load_config(config_path=tmp_path / "config.txt")
+        cfg = AppConfig.from_dict(raw)
+        assert cfg.default_base_model is None
+
+    def test_app_config_has_previous_default_models(self, tmp_path):
+        from modules.config import AppConfig, load_config
+
+        raw = load_config(config_path=tmp_path / "config.txt")
+        cfg = AppConfig.from_dict(raw)
+        assert cfg.previous_default_models == ()
+
+    def test_app_config_reads_custom_base_model_and_history(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_base_model": "sdxl",
+                    "previous_default_models": ["old1.safetensors", "old2.safetensors"],
+                }
+            )
+        )
+        from modules.config import AppConfig, load_config
+
+        raw = load_config(config_path=config_file)
+        cfg = AppConfig.from_dict(raw)
+        assert cfg.default_base_model == "sdxl"
+        assert cfg.previous_default_models == ("old1.safetensors", "old2.safetensors")
