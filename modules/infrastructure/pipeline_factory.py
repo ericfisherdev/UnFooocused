@@ -260,13 +260,11 @@ def _make_sigma_calculator():
 
 def _make_patch_applier():
     """Create a patch settings applier using the global registry."""
-    from modules.infrastructure.patch_system import PatchSettingsRegistry
-
-    registry = PatchSettingsRegistry()
+    from modules.infrastructure.patch_system import patch_settings_registry
 
     def apply_settings(**kwargs):
         pid = os.getpid()
-        registry.set(pid, **kwargs)
+        patch_settings_registry.set(pid, **kwargs)
 
     return apply_settings
 
