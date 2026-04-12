@@ -403,46 +403,40 @@ class TestAppConfigModelRefinerFields:
 class TestSamplingConfigDefaults:
     """UNF-53: Sampling/generation config keys exist with correct defaults."""
 
-    def test_default_cfg_tsnr_present(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_cfg_tsnr_present(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "missing.txt")
         assert result["default_cfg_tsnr"] == pytest.approx(7.0)
 
-    def test_default_clip_skip_present(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_clip_skip_present(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "missing.txt")
         assert result["default_clip_skip"] == 2
 
-    def test_default_cfg_scale_default_is_seven(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_cfg_scale_default_is_seven(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "missing.txt")
         assert result["default_cfg_scale"] == pytest.approx(7.0)
 
-    def test_default_sampler_default_is_dpmpp_2m_sde_gpu(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_sampler_default_is_dpmpp_2m_sde_gpu(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "missing.txt")
         assert result["default_sampler"] == "dpmpp_2m_sde_gpu"
 
-    def test_default_scheduler_default_is_karras(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_scheduler_default_is_karras(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "missing.txt")
         assert result["default_scheduler"] == "karras"
 
-    def test_default_sample_sharpness_default_is_two(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_default_sample_sharpness_default_is_two(self, tmp_path):
         from modules.config import load_config
 
-        result = load_config()
+        result = load_config(config_path=tmp_path / "missing.txt")
         assert result["default_sample_sharpness"] == pytest.approx(2.0)
 
 
@@ -536,4 +530,32 @@ class TestSamplingConfigValidation:
         from modules.config import load_config
 
         with pytest.raises(ValueError, match="default_cfg_tsnr"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_on_cfg_scale_non_positive(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_cfg_scale": 0}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_cfg_scale"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_on_cfg_scale_non_numeric(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_cfg_scale": "seven"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_cfg_scale"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_on_negative_sharpness(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_sample_sharpness": -0.1}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_sample_sharpness"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_on_sharpness_non_numeric(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_sample_sharpness": "sharp"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_sample_sharpness"):
             load_config(config_path=tmp_path / "config.txt")
