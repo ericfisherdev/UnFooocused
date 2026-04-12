@@ -10,7 +10,9 @@ import copy
 import json
 import logging
 import math
+import os
 import re
+import shutil
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,8 +74,21 @@ _DEFAULTS: dict[str, Any] = {
     "paths_checkpoints": ["./models/checkpoints"],
     "paths_loras": ["./models/loras"],
     "path_embeddings": "./models/embeddings",
+    "path_vae": "./models/vae",
+    "path_vae_approx": "./models/vae_approx",
+    "path_upscale_models": "./models/upscale_models",
+    "path_inpaint": "./models/inpaint",
+    "path_controlnet": "./models/controlnet",
+    "path_clip_vision": "./models/clip_vision",
+    "path_fooocus_expansion": "./models/prompt_expansion/fooocus_expansion",
+    "path_wildcards": "./wildcards",
+    "path_safety_checker": "./models/safety_checker",
+    "path_sam": "./models/sam",
+    "path_lora_presets": "./lora_presets",
     "path_outputs": "./outputs",
     "path_fast_checkpoints": "",
+    "temp_path": "./temp",
+    "temp_path_cleanup_on_launch": True,
     # UI / metadata / advanced (UNF-57)
     "default_advanced_checkbox": False,
     "default_developer_debug_mode_checkbox": False,
@@ -99,6 +114,21 @@ _UI_ADVANCED_BOOL_KEYS: tuple[str, ...] = (
     "default_save_metadata_to_images",
     "default_save_only_final_enhanced_image",
     "default_describe_apply_prompts_checkbox",
+)
+
+_NEW_PATH_KEYS: tuple[str, ...] = (
+    "path_vae",
+    "path_vae_approx",
+    "path_upscale_models",
+    "path_inpaint",
+    "path_controlnet",
+    "path_clip_vision",
+    "path_fooocus_expansion",
+    "path_wildcards",
+    "path_safety_checker",
+    "path_sam",
+    "path_lora_presets",
+    "temp_path",
 )
 
 
@@ -133,8 +163,41 @@ def load_config(
 
         config.update(user_config)
 
+    _apply_path_env_overrides(config)
     _validate_config(config)
+    _warn_missing_paths(config)
+    if config.get("temp_path_cleanup_on_launch"):
+        cleanup_temp_path(config["temp_path"])
     return config
+
+
+def _apply_path_env_overrides(config: dict[str, Any]) -> None:
+    for key in _NEW_PATH_KEYS:
+        env_value = os.environ.get(key)
+        if env_value is not None:
+            config[key] = env_value
+
+
+def _warn_missing_paths(config: dict[str, Any]) -> None:
+    for key in _NEW_PATH_KEYS:
+        value = config.get(key)
+        if isinstance(value, str) and value and not Path(value).is_dir():
+            logger.warning("config.txt: %s=%r does not exist on disk", key, value)
+
+
+def cleanup_temp_path(temp_path: str) -> None:
+    """Remove all contents of *temp_path* on launch (UNF-58)."""
+    path = Path(temp_path)
+    if not path.is_dir():
+        return
+    for child in path.iterdir():
+        try:
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+        except OSError as exc:
+            logger.warning("failed to remove temp entry %s: %s", child, exc)
 
 
 def _validate_config(config: dict[str, Any]) -> None:
@@ -154,6 +217,18 @@ def _validate_config(config: dict[str, Any]) -> None:
     _validate_vae_perf_config(config)
     _validate_ui_metadata_config(config)
     _validate_base_model_preset_config(config)
+    _validate_directory_paths(config)
+
+
+def _validate_directory_paths(config: dict[str, Any]) -> None:
+    """Validate directory path config keys (UNF-58)."""
+    for key in _NEW_PATH_KEYS:
+        value = config.get(key)
+        if not isinstance(value, str):
+            raise ValueError(f"config.txt: {key} must be a string path")
+    cleanup = config.get("temp_path_cleanup_on_launch")
+    if not isinstance(cleanup, bool):
+        raise ValueError("config.txt: temp_path_cleanup_on_launch must be a bool")
 
 
 _LORA_WEIGHT_BOUND: float = 10.0
@@ -510,8 +585,21 @@ class AppConfig:
     paths_checkpoints: tuple[str, ...]
     paths_loras: tuple[str, ...]
     path_embeddings: str
+    path_vae: str
+    path_vae_approx: str
+    path_upscale_models: str
+    path_inpaint: str
+    path_controlnet: str
+    path_clip_vision: str
+    path_fooocus_expansion: str
+    path_wildcards: str
+    path_safety_checker: str
+    path_sam: str
+    path_lora_presets: str
     path_outputs: str
     path_fast_checkpoints: str
+    temp_path: str
+    temp_path_cleanup_on_launch: bool
 
     # UI / metadata / advanced (UNF-57)
     default_advanced_checkbox: bool
@@ -583,8 +671,21 @@ class AppConfig:
             paths_checkpoints=tuple(paths_checkpoints),
             paths_loras=tuple(paths_loras),
             path_embeddings=raw["path_embeddings"],
+            path_vae=raw["path_vae"],
+            path_vae_approx=raw["path_vae_approx"],
+            path_upscale_models=raw["path_upscale_models"],
+            path_inpaint=raw["path_inpaint"],
+            path_controlnet=raw["path_controlnet"],
+            path_clip_vision=raw["path_clip_vision"],
+            path_fooocus_expansion=raw["path_fooocus_expansion"],
+            path_wildcards=raw["path_wildcards"],
+            path_safety_checker=raw["path_safety_checker"],
+            path_sam=raw["path_sam"],
+            path_lora_presets=raw["path_lora_presets"],
             path_outputs=raw["path_outputs"],
             path_fast_checkpoints=raw.get("path_fast_checkpoints", ""),
+            temp_path=raw["temp_path"],
+            temp_path_cleanup_on_launch=bool(raw["temp_path_cleanup_on_launch"]),
             default_advanced_checkbox=raw["default_advanced_checkbox"],
             default_developer_debug_mode_checkbox=raw["default_developer_debug_mode_checkbox"],
             default_black_out_nsfw=raw["default_black_out_nsfw"],

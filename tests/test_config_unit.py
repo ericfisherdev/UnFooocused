@@ -13,6 +13,7 @@ import json
 import os
 
 import pytest
+from modules.config import _NEW_PATH_KEYS
 from modules.flags import Performance
 
 
@@ -1272,3 +1273,138 @@ class TestBaseModelPresetConfig:
             result = load_config(config_path=self._write(tmp_path, {"base_model_preset": bad_preset}))
         assert result["base_model_preset"] == "SDXL"
         assert any("base_model_preset" in rec.message for rec in caplog.records)
+
+
+class TestDirectoryPathConfig:
+    """UNF-58: Directory path config keys."""
+
+    def _write(self, tmp_path, payload):
+        path = tmp_path / "config.txt"
+        path.write_text(json.dumps(payload))
+        return path
+
+    @pytest.mark.parametrize("key", _NEW_PATH_KEYS)
+    def test_default_path_key_present(self, tmp_path, key):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert key in result
+        assert isinstance(result[key], str)
+
+    def test_default_temp_path_cleanup_on_launch_is_bool(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert "temp_path_cleanup_on_launch" in result
+        assert isinstance(result["temp_path_cleanup_on_launch"], bool)
+        assert result["temp_path_cleanup_on_launch"] is True
+
+    @pytest.mark.parametrize("key", _NEW_PATH_KEYS)
+    def test_path_key_accepts_string(self, tmp_path, key):
+        from modules.config import load_config
+
+        custom = str(tmp_path / "custom")
+        result = load_config(config_path=self._write(tmp_path, {key: custom}))
+        assert result[key] == custom
+
+    @pytest.mark.parametrize("key", _NEW_PATH_KEYS)
+    def test_path_key_rejects_non_string(self, tmp_path, key):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=self._write(tmp_path, {key: 42}))
+
+    def test_temp_path_cleanup_rejects_non_bool(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="temp_path_cleanup_on_launch"):
+            load_config(config_path=self._write(tmp_path, {"temp_path_cleanup_on_launch": "yes"}))
+
+    def test_warns_when_path_does_not_exist(self, tmp_path, caplog):
+        import logging
+
+        from modules.config import load_config
+
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            load_config(config_path=self._write(tmp_path, {"path_vae": "/nonexistent/vae/dir"}))
+        assert any("path_vae" in rec.message for rec in caplog.records)
+
+    def test_does_not_warn_when_path_exists(self, tmp_path, caplog):
+        import logging
+
+        from modules.config import load_config
+
+        real_dir = tmp_path / "real_vae"
+        real_dir.mkdir()
+        with caplog.at_level(logging.WARNING, logger="modules.config"):
+            load_config(config_path=self._write(tmp_path, {"path_vae": str(real_dir)}))
+        assert not any("path_vae=" in rec.message and "does not exist" in rec.message for rec in caplog.records)
+
+    def test_env_var_override_applies(self, tmp_path, monkeypatch):
+        from modules.config import load_config
+
+        monkeypatch.setenv("path_vae", "/env/override/vae")
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["path_vae"] == "/env/override/vae"
+
+    def test_env_var_override_applies_to_temp_path(self, tmp_path, monkeypatch):
+        from modules.config import load_config
+
+        monkeypatch.setenv("temp_path", "/env/temp")
+        result = load_config(config_path=tmp_path / "config.txt")
+        assert result["temp_path"] == "/env/temp"
+
+    def test_env_var_override_beats_file(self, tmp_path, monkeypatch):
+        from modules.config import load_config
+
+        monkeypatch.setenv("path_vae", "/env/wins")
+        result = load_config(config_path=self._write(tmp_path, {"path_vae": "/file/loses"}))
+        assert result["path_vae"] == "/env/wins"
+
+    def test_cleanup_temp_path_removes_files(self, tmp_path):
+        from modules.config import cleanup_temp_path
+
+        temp = tmp_path / "temp"
+        temp.mkdir()
+        (temp / "stale.txt").write_text("stale")
+        sub = temp / "sub"
+        sub.mkdir()
+        (sub / "nested.txt").write_text("nested")
+
+        cleanup_temp_path(str(temp))
+
+        assert temp.exists()
+        assert list(temp.iterdir()) == []
+
+    def test_cleanup_temp_path_missing_dir_is_noop(self, tmp_path):
+        from modules.config import cleanup_temp_path
+
+        cleanup_temp_path(str(tmp_path / "does_not_exist"))
+
+    def test_load_config_cleans_temp_when_enabled(self, tmp_path):
+        from modules.config import load_config
+
+        temp = tmp_path / "temp"
+        temp.mkdir()
+        (temp / "old.txt").write_text("old")
+        load_config(
+            config_path=self._write(
+                tmp_path,
+                {"temp_path": str(temp), "temp_path_cleanup_on_launch": True},
+            )
+        )
+        assert list(temp.iterdir()) == []
+
+    def test_load_config_skips_cleanup_when_disabled(self, tmp_path):
+        from modules.config import load_config
+
+        temp = tmp_path / "temp"
+        temp.mkdir()
+        (temp / "keep.txt").write_text("keep")
+        load_config(
+            config_path=self._write(
+                tmp_path,
+                {"temp_path": str(temp), "temp_path_cleanup_on_launch": False},
+            )
+        )
+        assert (temp / "keep.txt").exists()
