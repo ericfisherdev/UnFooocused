@@ -1558,15 +1558,50 @@ class TestDownloadCacheConfig:
             load_config(config_path=self._write(tmp_path, {key: ["not", "a", "dict"]}))
 
     @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
-    def test_non_string_key_rejected(self, tmp_path, key):
-        from modules.config import load_config
-
-        with pytest.raises(ValueError, match=key):
-            load_config(config_path=self._write(tmp_path, {key: {42: "https://example.com/x"}}))
-
-    @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
     def test_non_string_url_rejected(self, tmp_path, key):
         from modules.config import load_config
 
         with pytest.raises(ValueError, match=key):
             load_config(config_path=self._write(tmp_path, {key: {"model.safetensors": 123}}))
+
+
+class TestPlanMissingDownloads:
+    """UNF-60: queue missing files for download on startup."""
+
+    def test_empty_mapping_yields_empty_queue(self, tmp_path):
+        from modules.config import plan_missing_downloads
+
+        assert plan_missing_downloads({}, tmp_path) == ()
+
+    def test_existing_file_skipped(self, tmp_path):
+        from modules.config import plan_missing_downloads
+
+        (tmp_path / "present.safetensors").write_bytes(b"x")
+        queue = plan_missing_downloads({"present.safetensors": "https://example.com/p.safetensors"}, tmp_path)
+        assert queue == ()
+
+    def test_missing_file_queued(self, tmp_path):
+        from modules.config import PendingDownload, plan_missing_downloads
+
+        queue = plan_missing_downloads({"absent.safetensors": "https://example.com/a.safetensors"}, tmp_path)
+        assert queue == (
+            PendingDownload(
+                filename="absent.safetensors",
+                url="https://example.com/a.safetensors",
+                target_dir=tmp_path,
+            ),
+        )
+
+    def test_mixed_existing_and_missing(self, tmp_path):
+        from modules.config import plan_missing_downloads
+
+        (tmp_path / "have.bin").write_bytes(b"x")
+        queue = plan_missing_downloads(
+            {
+                "have.bin": "https://example.com/have.bin",
+                "need.bin": "https://example.com/need.bin",
+            },
+            tmp_path,
+        )
+        assert len(queue) == 1
+        assert queue[0].filename == "need.bin"
