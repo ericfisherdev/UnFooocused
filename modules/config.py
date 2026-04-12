@@ -312,17 +312,9 @@ def _validate_overwrite_int(config: dict[str, Any], key: str) -> None:
 
 
 def _validate_overwrite_upscale(config: dict[str, Any], key: str) -> None:
-    value = config.get(key)
-    if not isinstance(value, int | float) or isinstance(value, bool):
-        raise ValueError(f"config.txt: {key} must be a finite number >= -1 (use -1 for auto)")
-    try:
-        converted = float(value)
-    except OverflowError as exc:
-        raise ValueError(f"config.txt: {key} must be finite, got {value}") from exc
-    if not math.isfinite(converted):
-        raise ValueError(f"config.txt: {key} must be a finite number")
+    converted = _require_finite_number(config, key)
     if converted < -1:
-        raise ValueError(f"config.txt: {key}={value} must be >= -1")
+        raise ValueError(f"config.txt: {key}={converted} must be >= -1")
 
 
 def _validate_vae_perf_config(config: dict[str, Any]) -> None:
@@ -410,7 +402,11 @@ class AppConfig:
     previous_default_models: tuple[str, ...]
     default_refiner_model_name: str
     default_refiner_switch: float
+    default_vae: str
     default_performance: str
+    default_overwrite_step: int
+    default_overwrite_switch: int
+    default_overwrite_upscale: float
     default_aspect_ratio: str
     available_aspect_ratios: tuple[str, ...]
     default_image_number: int
@@ -467,7 +463,11 @@ class AppConfig:
             previous_default_models=tuple(raw.get("previous_default_models", [])),
             default_refiner_model_name=raw["default_refiner"],
             default_refiner_switch=float(raw["default_refiner_switch"]),
+            default_vae=raw["default_vae"],
             default_performance=raw["default_performance"],
+            default_overwrite_step=int(raw["default_overwrite_step"]),
+            default_overwrite_switch=int(raw["default_overwrite_switch"]),
+            default_overwrite_upscale=float(raw["default_overwrite_upscale"]),
             default_aspect_ratio=raw["default_aspect_ratio"],
             available_aspect_ratios=tuple(raw["available_aspect_ratios"]),
             default_image_number=int(raw["default_image_number"]),
