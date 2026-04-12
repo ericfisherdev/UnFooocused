@@ -143,13 +143,10 @@ class TestApplyOutpaintPaddingCombinations:
             ),
         )
         pad_h = int(100 * OUTPAINT_PADDING_RATIO)
-        pad_after_vert = 100 + 2 * pad_h
-        pad_w = int(pad_after_vert * OUTPAINT_PADDING_RATIO)
-        expected_w = 100 + 2 * pad_w
-        assert result.image.shape[0] == pad_after_vert
-        assert result.image.shape[1] == expected_w
+        pad_w = int(100 * OUTPAINT_PADDING_RATIO)
+        assert result.image.shape == (100 + 2 * pad_h, 100 + 2 * pad_w, 3)
 
-    def test_horizontal_padding_uses_updated_height_for_width_computation(self) -> None:
+    def test_vertical_and_horizontal_padding_are_independent(self) -> None:
         image = _solid_image(50, 50)
         mask = _solid_mask(50, 50)
         result = apply_outpaint_padding(
@@ -158,9 +155,8 @@ class TestApplyOutpaintPaddingCombinations:
             directions=(OutpaintDirection.TOP, OutpaintDirection.LEFT),
         )
         pad_top = int(50 * OUTPAINT_PADDING_RATIO)
-        new_height = 50 + pad_top
-        pad_left = int(new_height * OUTPAINT_PADDING_RATIO)
-        assert result.image.shape == (new_height, 50 + pad_left, 3)
+        pad_left = int(50 * OUTPAINT_PADDING_RATIO)
+        assert result.image.shape == (50 + pad_top, 50 + pad_left, 3)
 
     def test_original_image_region_preserved(self) -> None:
         rng = np.random.default_rng(42)
