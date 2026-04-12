@@ -1115,3 +1115,124 @@ class TestVaePerformanceConfig:
         (tmp_path / "config.txt").write_text(json.dumps({"default_overwrite_upscale": float("nan")}))
         with pytest.raises(ValueError, match="default_overwrite_upscale"):
             load_config(config_path=tmp_path / "config.txt")
+
+
+class TestUiMetadataAdvancedConfig:
+    """UNF-57: UI/metadata/advanced config defaults + validation."""
+
+    def _write(self, tmp_path, payload):
+        (tmp_path / "config.txt").write_text(json.dumps(payload))
+        return tmp_path / "config.txt"
+
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [
+            ("default_advanced_checkbox", False),
+            ("default_developer_debug_mode_checkbox", False),
+            ("default_black_out_nsfw", False),
+            ("default_save_metadata_to_images", False),
+            ("default_save_only_final_enhanced_image", False),
+            ("default_describe_apply_prompts_checkbox", True),
+            ("default_metadata_scheme", "fooocus"),
+            ("metadata_created_by", ""),
+            ("default_describe_content_type", ["Photograph"]),
+        ],
+    )
+    def test_default_value(self, tmp_path, key, expected):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "missing.txt")
+        assert result[key] == expected
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "default_advanced_checkbox",
+            "default_developer_debug_mode_checkbox",
+            "default_black_out_nsfw",
+            "default_save_metadata_to_images",
+            "default_save_only_final_enhanced_image",
+            "default_describe_apply_prompts_checkbox",
+        ],
+    )
+    def test_bool_override_accepted(self, tmp_path, key):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {key: True}))
+        assert result[key] is True
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "default_advanced_checkbox",
+            "default_developer_debug_mode_checkbox",
+            "default_black_out_nsfw",
+            "default_save_metadata_to_images",
+            "default_save_only_final_enhanced_image",
+            "default_describe_apply_prompts_checkbox",
+        ],
+    )
+    def test_non_bool_rejected(self, tmp_path, key):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=self._write(tmp_path, {key: "yes"}))
+
+    @pytest.mark.parametrize("scheme", ["fooocus", "a111", "comfy"])
+    def test_metadata_scheme_valid(self, tmp_path, scheme):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_metadata_scheme": scheme}))
+        assert result["default_metadata_scheme"] == scheme
+
+    def test_metadata_scheme_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_metadata_scheme"):
+            load_config(config_path=self._write(tmp_path, {"default_metadata_scheme": "exif"}))
+
+    def test_metadata_scheme_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_metadata_scheme"):
+            load_config(config_path=self._write(tmp_path, {"default_metadata_scheme": 7}))
+
+    def test_metadata_created_by_accepts_string(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"metadata_created_by": "Alice"}))
+        assert result["metadata_created_by"] == "Alice"
+
+    def test_metadata_created_by_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="metadata_created_by"):
+            load_config(config_path=self._write(tmp_path, {"metadata_created_by": 42}))
+
+    @pytest.mark.parametrize(
+        "entries",
+        [["Photograph"], ["Art/Anime"], ["Photograph", "Art/Anime"]],
+    )
+    def test_describe_content_type_valid(self, tmp_path, entries):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_describe_content_type": entries}))
+        assert result["default_describe_content_type"] == entries
+
+    def test_describe_content_type_not_list(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_describe_content_type"):
+            load_config(config_path=self._write(tmp_path, {"default_describe_content_type": "Photograph"}))
+
+    def test_describe_content_type_unknown_member(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_describe_content_type"):
+            load_config(config_path=self._write(tmp_path, {"default_describe_content_type": ["Sketch"]}))
+
+    def test_describe_content_type_non_string_member(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_describe_content_type"):
+            load_config(config_path=self._write(tmp_path, {"default_describe_content_type": [1]}))
