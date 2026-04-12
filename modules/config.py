@@ -169,6 +169,18 @@ def _validate_sampling_config(config: dict[str, Any]) -> None:
     if not isinstance(cfg_tsnr, int | float) or isinstance(cfg_tsnr, bool):
         raise ValueError(f"config.txt: default_cfg_tsnr must be a number, got {cfg_tsnr!r}")
 
+    cfg_scale = config.get("default_cfg_scale")
+    if not isinstance(cfg_scale, int | float) or isinstance(cfg_scale, bool):
+        raise ValueError(f"config.txt: default_cfg_scale must be a number, got {cfg_scale!r}")
+    if cfg_scale <= 0:
+        raise ValueError(f"config.txt: default_cfg_scale must be > 0, got {cfg_scale}")
+
+    sharpness = config.get("default_sample_sharpness")
+    if not isinstance(sharpness, int | float) or isinstance(sharpness, bool):
+        raise ValueError(f"config.txt: default_sample_sharpness must be a number, got {sharpness!r}")
+    if sharpness < 0:
+        raise ValueError(f"config.txt: default_sample_sharpness must be >= 0, got {sharpness}")
+
 
 # ---------------------------------------------------------------------------
 # File discovery
