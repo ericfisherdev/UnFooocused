@@ -31,7 +31,8 @@ def blend_masked_to_gray(pixels: torch.Tensor, mask: torch.Tensor) -> torch.Tens
     """Replace masked pixel regions with 0.5 gray.
 
     `pixels` is shaped (B, H, W, C) (channels-last as consumed by the VAE);
-    `mask` is shaped (B, H, W) with values in [0, 1]. Returns a new tensor —
+    `mask` is shaped (B, H, W) with values in [0, 1]. Soft masks are binarised
+    via `round()` — the blend is boolean, not alpha. Returns a new tensor;
     input is not mutated.
     """
     weight = mask.round().unsqueeze(-1)

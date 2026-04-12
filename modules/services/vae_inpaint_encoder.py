@@ -48,6 +48,6 @@ def encode_vae_inpaint(
     latent_fill = encoder.encode(fill_pixels)
     return VaeInpaintEncoding(
         latent_inpaint=latent_inpaint,
-        latent_mask=latent_mask.to(latent_inpaint.dtype),
+        latent_mask=latent_mask.to(device=latent_inpaint.device, dtype=latent_inpaint.dtype),
         latent_fill=latent_fill,
     )
