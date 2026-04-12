@@ -272,8 +272,6 @@ def _load_vae_to_gpu(vae: Any) -> None:
         ldm_patched.modules.model_management.load_models_gpu([vae])
     except ImportError:
         pass
-    except Exception:
-        logger.debug("Failed to pre-load VAE to GPU", exc_info=True)
 
 
 def _soft_empty_cache() -> None:

@@ -50,18 +50,28 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # ---------------------------------------------------------------------------
 
 _worker_stop = threading.Event()
+_worker_ready = threading.Event()
+_worker_error: BaseException | None = None
 _worker_thread: threading.Thread | None = None
 _worker_lock = threading.Lock()
 
 
 def _worker_loop() -> None:
     """Background thread that processes tasks from the async_tasks queue."""
+    global _worker_error
     from modules.async_worker import Worker, async_tasks
     from modules.infrastructure.pipeline_factory import build_pipeline
 
-    cfg = config.get_config()
-    pipeline = build_pipeline()
-    worker = Worker(output_dir=cfg.path_outputs, pipeline=pipeline)
+    try:
+        cfg = config.get_config()
+        pipeline = build_pipeline()
+        worker = Worker(output_dir=cfg.path_outputs, pipeline=pipeline)
+    except Exception as exc:
+        _worker_error = exc
+        _worker_ready.set()
+        return
+
+    _worker_ready.set()
 
     while not _worker_stop.is_set():
         task = None
@@ -83,8 +93,15 @@ def _start_worker() -> None:
     if _worker_thread is not None and _worker_thread.is_alive():
         return
     _worker_stop.clear()
+    _worker_ready.clear()
     _worker_thread = threading.Thread(target=_worker_loop, daemon=True, name="generation-worker")
     _worker_thread.start()
+
+    # Wait for pipeline construction to complete so bootstrap failures
+    # surface before the app reports ready to accept requests.
+    _worker_ready.wait(timeout=120)
+    if _worker_error is not None:
+        raise RuntimeError(f"Worker bootstrap failed: {_worker_error}") from _worker_error
     logger.info("Generation worker thread started")
 
 

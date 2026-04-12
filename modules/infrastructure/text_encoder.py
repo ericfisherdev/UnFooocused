@@ -100,6 +100,7 @@ class LdmTextEncoder:
             clip: An ldm_patched CLIP model instance.
         """
         self._clip = clip
+        self.clear_cache()
 
     def clear_cache(self) -> None:
         """Discard all cached conditioning results.

@@ -589,7 +589,7 @@ class DiffusionPipeline:
 
         # Update the text encoder's CLIP reference after LoRA application
         # so that LoRA-patched CLIP weights are used for text encoding
-        if hasattr(model, "clip_with_lora") and hasattr(self._text_encoder, "set_clip"):
+        if hasattr(model, "clip_with_lora"):
             self._text_encoder.set_clip(model.clip_with_lora)
 
         if config.freeu_enabled:
