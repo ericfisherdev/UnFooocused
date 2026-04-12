@@ -209,15 +209,14 @@ class TestInpaintWorkerConstruction:
 
 
 class TestInpaintWorkerPostProcess:
-    def test_post_process_pastes_into_interested_area(self) -> None:
+    def test_post_process_pastes_generated_pixels_inside_mask(self) -> None:
         image = np.full((128, 128, 3), 30, dtype=np.uint8)
         mask = _mask_with_rect((128, 128), 40, 80, 40, 80)
         worker = InpaintWorker(image=image, mask=mask, image_ops=_FakeImageOps(), use_fill=False, k=0.0)
         generated = np.full((64, 64, 3), 200, dtype=np.uint8)
         result = worker.post_process(generated)
-        a, b, c, d = worker.interested_area.as_tuple()
-        patch = result[a:b, c:d]
-        assert patch.mean() > 100
+        masked_pixels = result[mask == 255]
+        assert np.all(masked_pixels == 200), "masked region should be fully replaced by generated content"
 
     def test_post_process_preserves_outside_interested_area(self) -> None:
         image = np.full((128, 128, 3), 30, dtype=np.uint8)

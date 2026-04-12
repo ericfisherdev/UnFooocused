@@ -18,6 +18,9 @@ from numpy.typing import NDArray
 BlurFn = Callable[[NDArray[np.uint8], int], NDArray[np.uint8]]
 """Box-blur dependency used by `fooocus_fill` — injected for testability."""
 
+INITIAL_BOUNDS_PADDING: float = 1.15
+"""Symmetric expansion factor applied to the raw mask bbox half-extent."""
+
 FOOOCUS_FILL_SCHEDULE: tuple[tuple[int, int], ...] = (
     (512, 2),
     (256, 2),
@@ -87,7 +90,7 @@ def compute_initial_bounds(mask: NDArray[np.bool_]) -> InterestedArea:
     horizontal_mid = (right_raw + left_raw) // 2
     vertical_half = (bottom_raw - top_raw) // 2
     horizontal_half = (right_raw - left_raw) // 2
-    half_extent = int(max(vertical_half, horizontal_half) * 1.15)
+    half_extent = int(max(vertical_half, horizontal_half) * INITIAL_BOUNDS_PADDING)
 
     top = _clamp(vertical_mid - half_extent, 0, h)
     bottom = _clamp(vertical_mid + half_extent + 1, 0, h)
