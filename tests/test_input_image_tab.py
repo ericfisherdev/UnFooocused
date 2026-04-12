@@ -61,6 +61,11 @@ class TestInputImageTemplate:
         assert panel_labelled in html
         assert aria_controls in html
 
+    @pytest.mark.parametrize("slug", ["uov", "ip", "inpaint"])
+    def test_tabs_have_roving_tabindex_and_keydown(self, html: str, slug: str) -> None:
+        assert f":tabindex=\"activeTab === '{slug}' ? 0 : -1\"" in html
+        assert '@keydown="onTabKeydown($event)"' in html
+
 
 class TestGenerateArgsForwardsInputImages:
     """``_build_generate_args`` must forward inpaint + uov payloads from

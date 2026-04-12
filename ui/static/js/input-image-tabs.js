@@ -8,6 +8,8 @@
  * to /api/generate.
  */
 document.addEventListener("alpine:init", () => {
+    const TAB_ORDER = ["uov", "ip", "inpaint"];
+
     Alpine.data("inputImageTabs", () => ({
         activeTab: "inpaint",
         uovImage: null,
@@ -20,12 +22,36 @@ document.addEventListener("alpine:init", () => {
         _imgCtx: null,
         _baseCanvas: null,
         _sourceImage: null,
+        _pointerId: null,
 
         init() {
             this.$watch("inpaintImage", (value) => {
                 if (value) {
                     this.$nextTick(() => this._loadImageIntoCanvas(value));
                 }
+            });
+        },
+
+        // WCAG tab pattern: arrow keys cycle, Home/End jump, focus follows.
+        onTabKeydown(event) {
+            const key = event.key;
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) return;
+            event.preventDefault();
+            const current = TAB_ORDER.indexOf(this.activeTab);
+            let next = current;
+            if (key === "ArrowLeft") {
+                next = (current - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+            } else if (key === "ArrowRight") {
+                next = (current + 1) % TAB_ORDER.length;
+            } else if (key === "Home") {
+                next = 0;
+            } else if (key === "End") {
+                next = TAB_ORDER.length - 1;
+            }
+            this.activeTab = TAB_ORDER[next];
+            this.$nextTick(() => {
+                const btn = document.getElementById(`input-image-tab-${this.activeTab}-btn`);
+                btn?.focus();
             });
         },
 
