@@ -590,6 +590,9 @@ class _FakeTextEncoder:
     def encode(self, texts: list[str], clip_skip: int) -> Any:
         return [["fake_conditioning", {"pooled_output": "fake_pooled"}]]
 
+    def set_clip(self, clip: Any) -> None:
+        pass
+
     def clear_cache(self) -> None:
         pass
 
