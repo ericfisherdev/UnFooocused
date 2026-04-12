@@ -248,6 +248,118 @@ class TestLoadConfigValidation:
             load_config(config_path=tmp_path / "config.txt")
 
 
+class TestLoraConfig:
+    """UNF-54: LoRA config option validation."""
+
+    def test_default_loras_accepts_valid_tuples(self, tmp_path):
+        config_file = tmp_path / "config.txt"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "default_loras": [
+                        [True, "adapter.safetensors", 0.8],
+                        [False, "None", 1.0],
+                    ]
+                }
+            )
+        )
+        from modules.config import load_config
+
+        result = load_config(config_path=config_file)
+        assert result["default_loras"][0] == [True, "adapter.safetensors", 0.8]
+
+    def test_raises_when_default_loras_not_list(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": "nope"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_lora_entry_wrong_arity(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": [[True, "a.safetensors"]]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_lora_entry_bad_enabled_type(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": [["yes", "a.safetensors", 1.0]]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_lora_entry_bad_filename_type(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": [[True, 42, 1.0]]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_lora_entry_bad_weight_type(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": [[True, "a.safetensors", "heavy"]]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_lora_entry_not_list(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras": ["flat"]}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_min_weight_below_bound(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras_min_weight": -11.0}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras_min_weight"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_max_weight_above_bound(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras_max_weight": 11.0}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras_max_weight"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_min_weight_not_numeric(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras_min_weight": "low"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras_min_weight"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_max_weight_not_numeric(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_loras_max_weight": "high"}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_loras_max_weight"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_max_lora_number_not_int(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_max_lora_number": 4.5}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_max_lora_number"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_max_lora_number_zero(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_max_lora_number": 0}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_max_lora_number"):
+            load_config(config_path=tmp_path / "config.txt")
+
+    def test_raises_when_max_lora_number_negative(self, tmp_path):
+        (tmp_path / "config.txt").write_text(json.dumps({"default_max_lora_number": -3}))
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_max_lora_number"):
+            load_config(config_path=tmp_path / "config.txt")
+
+
 class TestModelRefinerConfig:
     """UNF-52: Model and refiner config options."""
 
