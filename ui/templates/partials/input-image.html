@@ -20,9 +20,11 @@
                 :class="{ 'input-image__tab--active': activeTab === 'uov' }"
                 role="tab"
                 :aria-selected="(activeTab === 'uov').toString()"
+                :tabindex="activeTab === 'uov' ? 0 : -1"
                 aria-controls="input-image-panel-uov"
                 data-testid="input-image-tab-uov"
-                @click="activeTab = 'uov'">
+                @click="activeTab = 'uov'"
+                @keydown="onTabKeydown($event)">
             Upscale or Variation
         </button>
         <button type="button"
@@ -31,9 +33,11 @@
                 :class="{ 'input-image__tab--active': activeTab === 'ip' }"
                 role="tab"
                 :aria-selected="(activeTab === 'ip').toString()"
+                :tabindex="activeTab === 'ip' ? 0 : -1"
                 aria-controls="input-image-panel-ip"
                 data-testid="input-image-tab-ip"
-                @click="activeTab = 'ip'">
+                @click="activeTab = 'ip'"
+                @keydown="onTabKeydown($event)">
             Image Prompt
         </button>
         <button type="button"
@@ -42,9 +46,11 @@
                 :class="{ 'input-image__tab--active': activeTab === 'inpaint' }"
                 role="tab"
                 :aria-selected="(activeTab === 'inpaint').toString()"
+                :tabindex="activeTab === 'inpaint' ? 0 : -1"
                 aria-controls="input-image-panel-inpaint"
                 data-testid="input-image-tab-inpaint"
-                @click="activeTab = 'inpaint'">
+                @click="activeTab = 'inpaint'"
+                @keydown="onTabKeydown($event)">
             Inpaint or Outpaint
         </button>
     </div>
