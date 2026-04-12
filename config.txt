@@ -1,37 +1,49 @@
 {
-    "default_model": "juggernautXL_v8Rundiffusion.safetensors",
+    "default_model": "pony/cyberrealisticPony_v160.safetensors",
     "default_refiner": "None",
     "default_refiner_switch": 0.5,
     "default_performance": "Speed",
-    "default_aspect_ratio": "1152*896",
-    "default_image_number": 1,
-    "default_max_image_number": 32,
-    "default_output_format": "png",
-    "default_prompt": "",
-    "default_prompt_negative": "",
-    "default_styles": [
-        "Fooocus V2",
-        "Fooocus Enhance",
-        "Fooocus Sharp"
+    "default_aspect_ratio": "832*1216",
+    "available_aspect_ratios": [
+        "1216*304",
+        "832*1216",
+        "1024*1024",
+        "1216*832"
     ],
+<<<<<<< Updated upstream
     "default_cfg_scale": 7.0,
     "default_cfg_tsnr": 7.0,
+=======
+    "default_image_number": 4,
+    "default_max_image_number": 64,
+    "default_output_format": "webp",
+    "default_prompt": "",
+    "default_prompt_negative": "((Asian)), lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature",
+    "default_styles": [],
+    "default_cfg_scale": 2.66,
+>>>>>>> Stashed changes
     "default_sample_sharpness": 2.0,
     "default_sampler": "dpmpp_2m_sde_gpu",
     "default_scheduler": "karras",
     "default_clip_skip": 2,
     "default_loras": [
-        [true, "sd_xl_offset_example-lora_1.0.safetensors", 0.1],
+        [true, "Pony Realism Slider.safetensors", 3.2],
+        [true, "RawCam_250_v1.safetensors", 1.5],
+        [true, "RealisticSkinv1_ponyv6_loraplus.safetensors", 0.4],
+        [true, "Smooth_Booster_v3.safetensors", 0.3],
+        [true, "Expressive_H-000001.safetensors", 1.0],
+        [true, "None", 1.0],
         [true, "None", 1.0],
         [true, "None", 1.0],
         [true, "None", 1.0],
         [true, "None", 1.0]
     ],
-    "default_loras_min_weight": -2.0,
-    "default_loras_max_weight": 2.0,
-    "default_max_lora_number": 5,
-    "paths_checkpoints": ["./models/checkpoints"],
-    "paths_loras": ["./models/loras"],
-    "path_embeddings": "./models/embeddings",
-    "path_outputs": "./outputs"
+    "default_loras_min_weight": -6.0,
+    "default_loras_max_weight": 6.0,
+    "default_max_lora_number": 10,
+    "paths_checkpoints": ["/mnt/NovusLocus/ai/focus/models/checkpoints"],
+    "paths_loras": ["/mnt/NovusLocus/ai/focus/models/loras"],
+    "path_embeddings": "/mnt/NovusLocus/ai/focus/models/embeddings",
+    "path_outputs": "/mnt/NovusLocus/ai/focus/outputs",
+    "path_fast_checkpoints": "/mnt/games/fastfooocus/checkpoints/"
 }
