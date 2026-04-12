@@ -76,6 +76,8 @@ def compute_initial_bounds(mask: NDArray[np.bool_]) -> InterestedArea:
     The returned box expands the raw bbox of truthy mask pixels by ~15% and is
     clamped to the mask shape. Mirrors `compute_initial_abcd` in the upstream inpainting reference.
     """
+    if mask.ndim != 2:
+        raise ValueError(f"compute_initial_bounds requires a 2D mask, got shape {mask.shape}")
     indices = np.where(mask)
     if indices[0].size == 0:
         raise ValueError("compute_initial_bounds requires a non-empty mask")
@@ -182,6 +184,10 @@ def fooocus_fill(
     into the masked region, seeding the inpaint diffusion pass. Mirrors the
     upstream `fooocus_fill` algorithm.
     """
+    if image.ndim < 2 or mask.ndim != 2:
+        raise ValueError("fooocus_fill expects image with >=2 dims and a 2D mask")
+    if image.shape[:2] != mask.shape:
+        raise ValueError(f"fooocus_fill image/mask spatial mismatch: image={image.shape[:2]}, mask={mask.shape}")
     current = image.copy()
     unmasked_coords = np.where(mask < 127)
     store = image[unmasked_coords]
