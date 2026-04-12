@@ -1635,3 +1635,175 @@ class TestPlanMissingDownloads:
         )
         assert len(queue) == 1
         assert queue[0].filename == "need.bin"
+
+
+class TestImagePromptUpscaleConfig:
+    """UNF-63: image-prompt (ControlNet/IP-Adapter) and UOV config."""
+
+    def _write(self, tmp_path, payload):
+        (tmp_path / "config.txt").write_text(json.dumps(payload))
+        return tmp_path / "config.txt"
+
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [
+            ("default_image_prompt_checkbox", False),
+            ("default_image_prompt_advanced_checkbox", False),
+            ("default_uov_method", "Disabled"),
+            ("default_selected_image_input_tab_id", "uov_tab"),
+        ],
+    )
+    def test_scalar_defaults(self, tmp_path, key, expected):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "missing.txt")
+        assert result[key] == expected
+
+    @pytest.mark.parametrize("slot", [1, 2, 3, 4])
+    def test_ip_slot_defaults(self, tmp_path, slot):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "missing.txt")
+        assert result[f"default_ip_image_{slot}"] == "None"
+        assert result[f"default_ip_type_{slot}"] == "ImagePrompt"
+        assert result[f"default_ip_stop_at_{slot}"] == pytest.approx(0.5)
+        assert result[f"default_ip_weight_{slot}"] == pytest.approx(1.0)
+
+    @pytest.mark.parametrize(
+        "key",
+        ["default_image_prompt_checkbox", "default_image_prompt_advanced_checkbox"],
+    )
+    def test_image_prompt_bool_override_accepted(self, tmp_path, key):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {key: True}))
+        assert result[key] is True
+
+    @pytest.mark.parametrize(
+        "key",
+        ["default_image_prompt_checkbox", "default_image_prompt_advanced_checkbox"],
+    )
+    def test_image_prompt_bool_non_bool_rejected(self, tmp_path, key):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=self._write(tmp_path, {key: "yes"}))
+
+    @pytest.mark.parametrize("ip_type", ["ImagePrompt", "PyraCanny", "CPDS", "FaceSwap"])
+    def test_ip_type_valid(self, tmp_path, ip_type):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_type_1": ip_type}))
+        assert result["default_ip_type_1"] == ip_type
+
+    def test_ip_type_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_type_1"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_type_1": "Canny"}))
+
+    def test_ip_type_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_type_2"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_type_2": 7}))
+
+    @pytest.mark.parametrize("value", [0.0, 0.25, 0.5, 1.0])
+    def test_ip_stop_at_valid_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_1": value}))
+        assert result["default_ip_stop_at_1"] == pytest.approx(value)
+
+    @pytest.mark.parametrize("value", [-0.01, 1.01, 2.0])
+    def test_ip_stop_at_out_of_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_stop_at_1"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_1": value}))
+
+    def test_ip_stop_at_not_numeric(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_stop_at_3"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_3": "half"}))
+
+    def test_ip_stop_at_rejects_bool(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_stop_at_4"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_stop_at_4": True}))
+
+    @pytest.mark.parametrize("value", [0.0, 0.5, 1.0, 2.0])
+    def test_ip_weight_valid_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_weight_2": value}))
+        assert result["default_ip_weight_2"] == pytest.approx(value)
+
+    @pytest.mark.parametrize("value", [-0.01, 2.01, 10.0])
+    def test_ip_weight_out_of_range(self, tmp_path, value):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_weight_2"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_weight_2": value}))
+
+    def test_ip_weight_not_numeric(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_weight_1"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_weight_1": None}))
+
+    @pytest.mark.parametrize("path", ["None", "my_image.png"])
+    def test_ip_image_accepts_string(self, tmp_path, path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_ip_image_1": path}))
+        assert result["default_ip_image_1"] == path
+
+    def test_ip_image_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_ip_image_4"):
+            load_config(config_path=self._write(tmp_path, {"default_ip_image_4": 42}))
+
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "Disabled",
+            "Vary (Subtle)",
+            "Vary (Strong)",
+            "Upscale (1.5x)",
+            "Upscale (2x)",
+            "Upscale (Fast 2x)",
+        ],
+    )
+    def test_uov_method_valid(self, tmp_path, method):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_uov_method": method}))
+        assert result["default_uov_method"] == method
+
+    def test_uov_method_invalid(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_uov_method"):
+            load_config(config_path=self._write(tmp_path, {"default_uov_method": "Upscale (3x)"}))
+
+    def test_uov_method_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_uov_method"):
+            load_config(config_path=self._write(tmp_path, {"default_uov_method": 1}))
+
+    def test_selected_image_input_tab_id_accepts_string(self, tmp_path):
+        from modules.config import load_config
+
+        result = load_config(config_path=self._write(tmp_path, {"default_selected_image_input_tab_id": "ip_tab"}))
+        assert result["default_selected_image_input_tab_id"] == "ip_tab"
+
+    def test_selected_image_input_tab_id_not_string(self, tmp_path):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match="default_selected_image_input_tab_id"):
+            load_config(config_path=self._write(tmp_path, {"default_selected_image_input_tab_id": 1}))
