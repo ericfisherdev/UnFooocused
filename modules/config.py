@@ -106,6 +106,30 @@ _DEFAULTS: dict[str, Any] = {
     # Base model preset (UNF-59) — populated below from _DEFAULT_BASE_MODEL_PRESET
 }
 
+_IP_IMAGE_SLOTS: tuple[int, ...] = (1, 2, 3, 4)
+_VALID_IP_TYPES: frozenset[str] = frozenset({"ImagePrompt", "PyraCanny", "CPDS", "FaceSwap"})
+_VALID_UOV_METHODS: frozenset[str] = frozenset(
+    {
+        "Disabled",
+        "Vary (Subtle)",
+        "Vary (Strong)",
+        "Upscale (1.5x)",
+        "Upscale (2x)",
+        "Upscale (Fast 2x)",
+    }
+)
+
+# UNF-63: image prompt and UOV defaults
+_DEFAULTS["default_image_prompt_checkbox"] = False
+_DEFAULTS["default_image_prompt_advanced_checkbox"] = False
+_DEFAULTS["default_uov_method"] = "Disabled"
+_DEFAULTS["default_selected_image_input_tab_id"] = "uov_tab"
+for _slot in _IP_IMAGE_SLOTS:
+    _DEFAULTS[f"default_ip_image_{_slot}"] = "None"
+    _DEFAULTS[f"default_ip_type_{_slot}"] = "ImagePrompt"
+    _DEFAULTS[f"default_ip_stop_at_{_slot}"] = 0.5
+    _DEFAULTS[f"default_ip_weight_{_slot}"] = 1.0
+
 _VALID_METADATA_SCHEMES: frozenset[str] = frozenset({"fooocus", "a111", "comfy"})
 _VALID_DESCRIBE_CONTENT_TYPES: frozenset[str] = frozenset({"Photograph", "Art/Anime"})
 _VALID_BASE_MODEL_PRESETS: frozenset[str] = frozenset({"SDXL", "Pony", "Illustrious"})
@@ -279,6 +303,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     _validate_base_model_preset_config(config)
     _validate_directory_paths(config)
     _validate_download_config(config)
+    _validate_image_prompt_config(config)
 
 
 def _validate_directory_paths(config: dict[str, Any]) -> None:
@@ -571,6 +596,48 @@ def plan_missing_downloads(downloads: Mapping[str, str], target_dir: str | Path)
         for name, url in downloads.items()
         if not (target / name).is_file()
     )
+
+
+def _validate_bounded_float(config: dict[str, Any], key: str, lo: float, hi: float) -> None:
+    value = config.get(key)
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise ValueError(f"config.txt: {key} must be a number in [{lo}, {hi}], got {value!r}")
+    if not math.isfinite(float(value)) or not lo <= float(value) <= hi:
+        raise ValueError(f"config.txt: {key} must be a number in [{lo}, {hi}], got {value!r}")
+
+
+def _validate_image_prompt_config(config: dict[str, Any]) -> None:
+    """Validate image-prompt (ControlNet/IP-Adapter) and UOV config keys (UNF-63)."""
+    for key in ("default_image_prompt_checkbox", "default_image_prompt_advanced_checkbox"):
+        value = config.get(key)
+        if not isinstance(value, bool):
+            raise ValueError(f"config.txt: {key} must be a boolean, got {value!r}")
+
+    for slot in _IP_IMAGE_SLOTS:
+        image_key = f"default_ip_image_{slot}"
+        image_value = config.get(image_key)
+        if not isinstance(image_value, str):
+            raise ValueError(f"config.txt: {image_key} must be a string, got {image_value!r}")
+
+        type_key = f"default_ip_type_{slot}"
+        type_value = config.get(type_key)
+        if not isinstance(type_value, str):
+            raise ValueError(f"config.txt: {type_key} must be a string, got {type_value!r}")
+        if type_value not in _VALID_IP_TYPES:
+            raise ValueError(f"config.txt: {type_key}={type_value!r} must be one of {sorted(_VALID_IP_TYPES)}")
+
+        _validate_bounded_float(config, f"default_ip_stop_at_{slot}", 0.0, 1.0)
+        _validate_bounded_float(config, f"default_ip_weight_{slot}", 0.0, 2.0)
+
+    uov = config.get("default_uov_method")
+    if not isinstance(uov, str):
+        raise ValueError(f"config.txt: default_uov_method must be a string, got {uov!r}")
+    if uov not in _VALID_UOV_METHODS:
+        raise ValueError(f"config.txt: default_uov_method={uov!r} must be one of {sorted(_VALID_UOV_METHODS)}")
+
+    tab_id = config.get("default_selected_image_input_tab_id")
+    if not isinstance(tab_id, str):
+        raise ValueError(f"config.txt: default_selected_image_input_tab_id must be a string, got {tab_id!r}")
 
 
 def _validate_base_model_preset_config(config: dict[str, Any]) -> None:

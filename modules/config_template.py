@@ -99,6 +99,44 @@ KEY_DOCS: dict[str, KeyDoc] = {
     "default_styles": KeyDoc("Image Generation", "list[string]", "Styles enabled by default."),
     "default_controlnet_image_count": KeyDoc("Image Generation", "int", "Number of ControlNet image slots."),
     "default_enhance_tabs": KeyDoc("Image Generation", "int", "Number of enhance tabs in the UI."),
+    # Image Prompt & UOV (UNF-63)
+    "default_image_prompt_checkbox": KeyDoc("Image Generation", "bool", "Expand the image-prompt panel by default."),
+    "default_image_prompt_advanced_checkbox": KeyDoc(
+        "Image Generation", "bool", "Expand advanced image-prompt controls by default."
+    ),
+    "default_uov_method": KeyDoc(
+        "Image Generation",
+        "string",
+        "Default upscale/variation method.",
+        "Disabled | Vary (Subtle) | Vary (Strong) | Upscale (1.5x) | Upscale (2x) | Upscale (Fast 2x)",
+    ),
+    "default_selected_image_input_tab_id": KeyDoc(
+        "Image Generation", "string", "Active tab id for the image-input section on startup."
+    ),
+    "default_ip_image_1": KeyDoc("Image Generation", "string", "IP-Adapter slot 1 image path ('None' to disable)."),
+    "default_ip_image_2": KeyDoc("Image Generation", "string", "IP-Adapter slot 2 image path ('None' to disable)."),
+    "default_ip_image_3": KeyDoc("Image Generation", "string", "IP-Adapter slot 3 image path ('None' to disable)."),
+    "default_ip_image_4": KeyDoc("Image Generation", "string", "IP-Adapter slot 4 image path ('None' to disable)."),
+    "default_ip_type_1": KeyDoc(
+        "Image Generation", "string", "IP-Adapter slot 1 type.", "ImagePrompt | PyraCanny | CPDS | FaceSwap"
+    ),
+    "default_ip_type_2": KeyDoc(
+        "Image Generation", "string", "IP-Adapter slot 2 type.", "ImagePrompt | PyraCanny | CPDS | FaceSwap"
+    ),
+    "default_ip_type_3": KeyDoc(
+        "Image Generation", "string", "IP-Adapter slot 3 type.", "ImagePrompt | PyraCanny | CPDS | FaceSwap"
+    ),
+    "default_ip_type_4": KeyDoc(
+        "Image Generation", "string", "IP-Adapter slot 4 type.", "ImagePrompt | PyraCanny | CPDS | FaceSwap"
+    ),
+    "default_ip_stop_at_1": KeyDoc("Image Generation", "float", "IP-Adapter slot 1 stop-at fraction.", "0.0 - 1.0"),
+    "default_ip_stop_at_2": KeyDoc("Image Generation", "float", "IP-Adapter slot 2 stop-at fraction.", "0.0 - 1.0"),
+    "default_ip_stop_at_3": KeyDoc("Image Generation", "float", "IP-Adapter slot 3 stop-at fraction.", "0.0 - 1.0"),
+    "default_ip_stop_at_4": KeyDoc("Image Generation", "float", "IP-Adapter slot 4 stop-at fraction.", "0.0 - 1.0"),
+    "default_ip_weight_1": KeyDoc("Image Generation", "float", "IP-Adapter slot 1 weight.", "0.0 - 2.0"),
+    "default_ip_weight_2": KeyDoc("Image Generation", "float", "IP-Adapter slot 2 weight.", "0.0 - 2.0"),
+    "default_ip_weight_3": KeyDoc("Image Generation", "float", "IP-Adapter slot 3 weight.", "0.0 - 2.0"),
+    "default_ip_weight_4": KeyDoc("Image Generation", "float", "IP-Adapter slot 4 weight.", "0.0 - 2.0"),
     # VAE & Performance — (kept under Sampling/Image Gen categories above where relevant)
     # UI, Metadata & Advanced
     "default_advanced_checkbox": KeyDoc("UI, Metadata & Advanced", "bool", "Expand advanced controls by default."),
