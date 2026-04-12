@@ -39,7 +39,7 @@ def build_pipeline() -> Any | None:
 
     try:
         return _build_pipeline_from_ldm()
-    except (ImportError, ModuleNotFoundError):
+    except ImportError:
         logger.warning(
             "ldm_patched unavailable — falling back to stub mode",
             exc_info=True,
