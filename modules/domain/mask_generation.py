@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, assert_never
 
 import numpy as np
 
@@ -104,4 +104,6 @@ def combine_masks(
         return np.logical_or(base, overlay)
     if mode is MaskCombineMode.INTERSECT:
         return np.logical_and(base, overlay)
-    return np.logical_and(base, np.logical_not(overlay))
+    if mode is MaskCombineMode.SUBTRACT:
+        return np.logical_and(base, np.logical_not(overlay))
+    assert_never(mode)
