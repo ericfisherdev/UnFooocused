@@ -32,7 +32,11 @@ _DEFAULTS: dict[str, Any] = {
     "default_refiner": "None",
     "default_refiner_switch": 0.5,
     "previous_default_models": [],
+    "default_vae": "Default (model)",
     "default_performance": "Speed",
+    "default_overwrite_step": -1,
+    "default_overwrite_switch": -1,
+    "default_overwrite_upscale": -1,
     "default_aspect_ratio": "1152*896",
     "available_aspect_ratios": sdxl_aspect_ratios,
     "default_image_number": 1,
@@ -122,6 +126,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     _validate_model_refiner_config(config)
     _validate_sampling_config(config)
     _validate_image_gen_config(config)
+    _validate_vae_perf_config(config)
 
 
 _LORA_WEIGHT_BOUND: float = 10.0
@@ -296,6 +301,45 @@ def _validate_image_gen_config(config: dict[str, Any]) -> None:
         raise ValueError(
             f"config.txt: default_output_format={output_format!r} must be one of {sorted(_VALID_OUTPUT_FORMATS)}"
         )
+
+
+def _validate_overwrite_int(config: dict[str, Any], key: str) -> None:
+    value = config.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"config.txt: {key} must be an integer >= -1 (use -1 for auto)")
+    if value < -1:
+        raise ValueError(f"config.txt: {key}={value} must be >= -1")
+
+
+def _validate_overwrite_upscale(config: dict[str, Any], key: str) -> None:
+    value = config.get(key)
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise ValueError(f"config.txt: {key} must be a finite number >= -1 (use -1 for auto)")
+    try:
+        converted = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"config.txt: {key} must be finite, got {value}") from exc
+    if not math.isfinite(converted):
+        raise ValueError(f"config.txt: {key} must be a finite number")
+    if converted < -1:
+        raise ValueError(f"config.txt: {key}={value} must be >= -1")
+
+
+def _validate_vae_perf_config(config: dict[str, Any]) -> None:
+    """Validate VAE and performance config keys (UNF-56)."""
+    from modules.flags import Performance
+
+    if not isinstance(config.get("default_vae"), str):
+        raise ValueError("config.txt: default_vae must be a string")
+
+    performance = config.get("default_performance")
+    valid_values = Performance.values()
+    if not isinstance(performance, str) or performance not in valid_values:
+        raise ValueError(f"config.txt: default_performance={performance!r} must be one of {valid_values}")
+
+    _validate_overwrite_int(config, "default_overwrite_step")
+    _validate_overwrite_int(config, "default_overwrite_switch")
+    _validate_overwrite_upscale(config, "default_overwrite_upscale")
 
 
 def _require_finite_number(config: dict[str, Any], key: str) -> float:
