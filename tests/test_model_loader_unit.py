@@ -243,19 +243,20 @@ class TestFreeUApplication:
     def test_apply_freeu_calls_freeu_v2_patch(self) -> None:
         """FreeU_V2.patch is called with model's unet_with_lora and parameters."""
         loader, model = _make_loader_and_model_for_freeu()
+        original_unet = model.unet_with_lora
 
         with patch("modules.infrastructure.model_loader._freeu_op") as mock_op:
             patched_unet = MagicMock()
             mock_op.patch.return_value = (patched_unet,)
             loader.apply_freeu(model, b1=1.3, b2=1.4, s1=0.9, s2=0.2)
 
-            mock_op.patch.assert_called_once_with(
-                model=model.unet_with_lora,
-                b1=1.3,
-                b2=1.4,
-                s1=0.9,
-                s2=0.2,
-            )
+            mock_op.patch.assert_called_once()
+            call_kwargs = mock_op.patch.call_args[1]
+            assert call_kwargs["model"] is original_unet
+            assert call_kwargs["b1"] == pytest.approx(1.3)
+            assert call_kwargs["b2"] == pytest.approx(1.4)
+            assert call_kwargs["s1"] == pytest.approx(0.9)
+            assert call_kwargs["s2"] == pytest.approx(0.2)
 
     def test_apply_freeu_updates_unet_with_lora(self) -> None:
         """After apply_freeu, model.unet_with_lora is the patched version."""
