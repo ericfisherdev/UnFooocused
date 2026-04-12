@@ -1518,3 +1518,55 @@ class TestDirectoryPathConfig:
             cleanup_temp_path(str(tmp_path))
         assert (tmp_path / "sentinel.txt").exists()
         assert any("unsafe" in rec.message for rec in caplog.records)
+
+
+_DOWNLOAD_KEYS = (
+    "checkpoint_downloads",
+    "lora_downloads",
+    "embeddings_downloads",
+    "vae_downloads",
+)
+
+
+class TestDownloadCacheConfig:
+    """UNF-60: download/cache dict config keys (dict[str, str])."""
+
+    def _write(self, tmp_path, payload):
+        (tmp_path / "config.txt").write_text(json.dumps(payload))
+        return tmp_path / "config.txt"
+
+    @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
+    def test_default_empty_dict(self, tmp_path, key):
+        from modules.config import load_config
+
+        result = load_config(config_path=tmp_path / "missing.txt")
+        assert result[key] == {}
+
+    @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
+    def test_valid_mapping_accepted(self, tmp_path, key):
+        from modules.config import load_config
+
+        payload = {key: {"model.safetensors": "https://example.com/model.safetensors"}}
+        result = load_config(config_path=self._write(tmp_path, payload))
+        assert result[key] == {"model.safetensors": "https://example.com/model.safetensors"}
+
+    @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
+    def test_non_dict_rejected(self, tmp_path, key):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=self._write(tmp_path, {key: ["not", "a", "dict"]}))
+
+    @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
+    def test_non_string_key_rejected(self, tmp_path, key):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=self._write(tmp_path, {key: {42: "https://example.com/x"}}))
+
+    @pytest.mark.parametrize("key", _DOWNLOAD_KEYS)
+    def test_non_string_url_rejected(self, tmp_path, key):
+        from modules.config import load_config
+
+        with pytest.raises(ValueError, match=key):
+            load_config(config_path=self._write(tmp_path, {key: {"model.safetensors": 123}}))
