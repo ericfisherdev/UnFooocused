@@ -81,11 +81,12 @@ class TestAlpineModeWatcher:
             assert field in js
 
     def test_detail_mode_branch_sets_strength_and_field(self, js: str) -> None:
-        assert '"detail"' in js or "'detail'" in js
+        assert "detail:" in js or '"detail":' in js or "'detail':" in js
         assert "0.5" in js
 
     def test_modify_mode_branch_sets_disable_initial_latent(self, js: str) -> None:
-        assert '"modify"' in js or "'modify'" in js
+        assert "modify:" in js or '"modify":' in js or "'modify':" in js
+        assert "disableInitialLatent: true" in js
 
 
 class TestGenerateArgsReadsRawBodyValues:

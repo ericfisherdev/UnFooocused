@@ -10,6 +10,31 @@
 document.addEventListener("alpine:init", () => {
     const TAB_ORDER = ["uov", "ip", "inpaint"];
 
+    // UNF-67 — per-mode defaults for advanced inpaint controls. The
+    // server no longer forces these fields; the mode selector is a
+    // purely client-side setter that nudges the sliders to sensible
+    // starting points. Users can override any value before submit.
+    const INPAINT_MODE_DEFAULTS = {
+        default: {
+            engine: "v2.6",
+            strength: 1.0,
+            respectiveField: 0.618,
+            disableInitialLatent: false,
+        },
+        detail: {
+            engine: "None",
+            strength: 0.5,
+            respectiveField: 0.0,
+            disableInitialLatent: false,
+        },
+        modify: {
+            engine: "v2.6",
+            strength: 1.0,
+            respectiveField: 0.0,
+            disableInitialLatent: true,
+        },
+    };
+
     Alpine.data("inputImageTabs", () => ({
         activeTab: "inpaint",
         uovImage: null,
@@ -17,6 +42,11 @@ document.addEventListener("alpine:init", () => {
         inpaintMode: "default",
         outpaintSelections: [],
         inpaintAdditionalPrompt: "",
+        inpaintEngine: INPAINT_MODE_DEFAULTS.default.engine,
+        inpaintStrength: INPAINT_MODE_DEFAULTS.default.strength,
+        inpaintRespectiveField: INPAINT_MODE_DEFAULTS.default.respectiveField,
+        inpaintErodeOrDilate: 0,
+        inpaintDisableInitialLatent: INPAINT_MODE_DEFAULTS.default.disableInitialLatent,
         brushSize: 32,
         _drawing: false,
         _lastX: 0,
@@ -32,6 +62,14 @@ document.addEventListener("alpine:init", () => {
                 if (value) {
                     this.$nextTick(() => this._loadImageIntoCanvas(value));
                 }
+            });
+            this.$watch("inpaintMode", (mode) => {
+                const preset = INPAINT_MODE_DEFAULTS[mode];
+                if (!preset) return;
+                this.inpaintEngine = preset.engine;
+                this.inpaintStrength = preset.strength;
+                this.inpaintRespectiveField = preset.respectiveField;
+                this.inpaintDisableInitialLatent = preset.disableInitialLatent;
             });
         },
 
