@@ -250,10 +250,9 @@ class InpaintModeOverrides(TypedDict):
 def _resolve_inpaint_mode_overrides(body: dict) -> InpaintModeOverrides:
     """Apply per-mode forced values to inpaint parameters.
 
-    Mirrors FwdFooocus ``inpaint_mode_change``: the mode selector is the
-    source of truth for engine/strength/respective_field and
-    disable_initial_latent, regardless of what the client sends for those
-    individual fields.
+    The mode selector is the source of truth for
+    engine/strength/respective_field and disable_initial_latent,
+    regardless of what the client sends for those individual fields.
     """
     mode = body.get("inpaint_mode", INPAINT_MODE_DEFAULT)
     if mode not in _INPAINT_MODE_SLUGS:
