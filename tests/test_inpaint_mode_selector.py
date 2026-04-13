@@ -52,6 +52,14 @@ class TestInpaintModeTemplate:
         assert "inpaintMode === 'detail'" in html
         assert "inpaintMode === 'modify'" in html
 
+    def test_outpaint_controls_visibility_bound_to_default_mode(self, html: str) -> None:
+        assert 'data-testid="inpaint-outpaint-controls"' in html
+        assert "inpaintMode === 'default'" in html
+
+    def test_outpaint_direction_checkboxes_present(self, html: str) -> None:
+        for direction in ("left", "right", "top", "bottom"):
+            assert f'data-testid="outpaint-direction-{direction}"' in html
+
 
 class TestGenerateArgsAppliesModeForcedValues:
     """``_build_generate_args`` must force engine/strength/respective_field

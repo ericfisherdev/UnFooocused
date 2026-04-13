@@ -108,6 +108,37 @@
             </select>
         </label>
 
+        <fieldset class="input-image__outpaint-controls"
+                  data-testid="inpaint-outpaint-controls"
+                  x-show="inpaintMode === 'default'"
+                  x-cloak>
+            <legend class="text-label">Outpaint direction</legend>
+            <label class="checkbox">
+                <input type="checkbox"
+                       value="Left"
+                       data-testid="outpaint-direction-left"
+                       x-model="outpaintSelections"> Left
+            </label>
+            <label class="checkbox">
+                <input type="checkbox"
+                       value="Right"
+                       data-testid="outpaint-direction-right"
+                       x-model="outpaintSelections"> Right
+            </label>
+            <label class="checkbox">
+                <input type="checkbox"
+                       value="Top"
+                       data-testid="outpaint-direction-top"
+                       x-model="outpaintSelections"> Top
+            </label>
+            <label class="checkbox">
+                <input type="checkbox"
+                       value="Bottom"
+                       data-testid="outpaint-direction-bottom"
+                       x-model="outpaintSelections"> Bottom
+            </label>
+        </fieldset>
+
         <label class="input-image__additional-prompt text-label"
                data-testid="inpaint-additional-prompt"
                x-show="inpaintMode === 'detail' || inpaintMode === 'modify'"
