@@ -5,8 +5,8 @@ three modes wired to per-mode visibility state; unit tests assert
 ``_build_generate_args`` enforces the forced parameter values for each
 mode regardless of what the client sends for engine/strength/respective_field.
 
-Reference: FwdFooocus ``modules/flags.py`` (mode constants) and
-``FwdFooocus/webui.py::inpaint_mode_change`` (forced value matrix).
+Mode constants and forced-value matrix are verified against the
+canonical three-mode table encoded in the tests below.
 """
 
 from __future__ import annotations
