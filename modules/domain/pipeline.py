@@ -25,6 +25,10 @@ class PipelineRequest:
     Invariants enforced in __post_init__:
     - denoising_strength in [0.0, 1.0]
     - image and user_mask spatial dimensions match
+
+    Note: `image` and `user_mask` are numpy arrays whose element contents are
+    mutable even though the dataclass is frozen. Callers must treat the arrays
+    as read-only after construction to preserve aggregate invariants.
     """
 
     image: NDArray[np.uint8]
