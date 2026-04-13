@@ -14,7 +14,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, TypedDict
 from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
@@ -234,6 +234,53 @@ async def get_samplers() -> dict:
 # ---------------------------------------------------------------------------
 
 
+INPAINT_MODE_DEFAULT = "default"
+INPAINT_MODE_DETAIL = "detail"
+INPAINT_MODE_MODIFY = "modify"
+_INPAINT_MODE_SLUGS = frozenset({INPAINT_MODE_DEFAULT, INPAINT_MODE_DETAIL, INPAINT_MODE_MODIFY})
+
+
+class InpaintModeOverrides(TypedDict):
+    disable_initial_latent: bool
+    engine: str
+    strength: float
+    respective_field: float
+
+
+def _resolve_inpaint_mode_overrides(body: dict) -> InpaintModeOverrides:
+    """Apply per-mode forced values to inpaint parameters.
+
+    Mirrors FwdFooocus ``inpaint_mode_change``: the mode selector is the
+    source of truth for engine/strength/respective_field and
+    disable_initial_latent, regardless of what the client sends for those
+    individual fields.
+    """
+    mode = body.get("inpaint_mode", INPAINT_MODE_DEFAULT)
+    if mode not in _INPAINT_MODE_SLUGS:
+        raise ValueError(f"invalid inpaint_mode: {mode!r}")
+
+    if mode == INPAINT_MODE_DETAIL:
+        return {
+            "disable_initial_latent": False,
+            "engine": "None",
+            "strength": 0.5,
+            "respective_field": 0.0,
+        }
+    if mode == INPAINT_MODE_MODIFY:
+        return {
+            "disable_initial_latent": True,
+            "engine": body.get("inpaint_engine", "None"),
+            "strength": 1.0,
+            "respective_field": 0.0,
+        }
+    return {
+        "disable_initial_latent": False,
+        "engine": body.get("inpaint_engine", "None"),
+        "strength": 1.0,
+        "respective_field": 0.618,
+    }
+
+
 def _build_generate_args(body: dict) -> list:
     """
     Build the positional args list that AsyncTask.__init__ expects.
@@ -245,6 +292,8 @@ def _build_generate_args(body: dict) -> list:
     from modules.flags import disabled
 
     cfg = config.get_config()
+
+    inpaint_mode_overrides = _resolve_inpaint_mode_overrides(body)
 
     loras_input = body.get("loras", [])
     # Pad to default_max_lora_number slots: (enabled, filename, weight)
@@ -341,10 +390,10 @@ def _build_generate_args(body: dict) -> list:
         float(body.get("freeu_s1", 0.99)),
         float(body.get("freeu_s2", 0.95)),
         body.get("debugging_inpaint_preprocessor", False),
-        body.get("inpaint_disable_initial_latent", False),
-        body.get("inpaint_engine", "None"),
-        float(body.get("inpaint_strength", 1.0)),
-        float(body.get("inpaint_respective_field", 0.618)),
+        inpaint_mode_overrides["disable_initial_latent"],
+        inpaint_mode_overrides["engine"],
+        inpaint_mode_overrides["strength"],
+        inpaint_mode_overrides["respective_field"],
         body.get("inpaint_advanced_masking_checkbox", False),
         body.get("invert_mask_checkbox", False),
         int(body.get("inpaint_erode_or_dilate", 0)),

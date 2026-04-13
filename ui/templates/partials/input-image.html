@@ -96,6 +96,29 @@
                    data-testid="inpaint-image-upload"
                    @change="onInpaintUpload($event)">
         </label>
+
+        <label class="input-image__mode text-label">
+            <span>Method</span>
+            <select class="select"
+                    data-testid="inpaint-mode-select"
+                    x-model="inpaintMode">
+                <option value="default">Inpaint or Outpaint (default)</option>
+                <option value="detail">Improve Detail (face, hand, eyes, etc.)</option>
+                <option value="modify">Modify Content (add objects, change background, etc.)</option>
+            </select>
+        </label>
+
+        <label class="input-image__additional-prompt text-label"
+               data-testid="inpaint-additional-prompt"
+               x-show="inpaintMode === 'detail' || inpaintMode === 'modify'"
+               x-cloak>
+            <span>Inpaint additional prompt</span>
+            <textarea class="textarea"
+                      rows="2"
+                      placeholder="Describe what to generate in the masked area"
+                      x-model="inpaintAdditionalPrompt"></textarea>
+        </label>
+
         <div class="input-image__canvas-wrapper" x-show="inpaintImage" x-cloak>
             <canvas x-ref="inpaintCanvas"
                     class="input-image__canvas"
