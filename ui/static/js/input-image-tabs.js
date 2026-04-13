@@ -15,6 +15,7 @@ document.addEventListener("alpine:init", () => {
         uovImage: null,
         inpaintImage: null,
         inpaintMode: "default",
+        outpaintSelections: [],
         inpaintAdditionalPrompt: "",
         brushSize: 32,
         _drawing: false,
