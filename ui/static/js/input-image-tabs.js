@@ -14,6 +14,8 @@ document.addEventListener("alpine:init", () => {
         activeTab: "inpaint",
         uovImage: null,
         inpaintImage: null,
+        inpaintMode: "default",
+        inpaintAdditionalPrompt: "",
         brushSize: 32,
         _drawing: false,
         _lastX: 0,
