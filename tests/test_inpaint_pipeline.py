@@ -264,6 +264,9 @@ class TestOutpaintMode:
 
         assert result.image.shape[0] > 64
         assert len(sampler.calls) == 1
+        interested_image_shape = sampler.calls[0]["interested_image_shape"]
+        interested_mask_shape = sampler.calls[0]["interested_mask_shape"]
+        assert interested_image_shape[:2] == interested_mask_shape[:2]
 
 
 class TestAutoMaskPath:

@@ -50,7 +50,7 @@ class InpaintPipeline:
     def run(self, request: PipelineRequest) -> PipelineResult:
         mask = self._resolve_mask(request)
         if request.invert_mask:
-            mask = np.asarray(255 - mask, dtype=np.uint8)
+            mask = 255 - mask
 
         image, mask, effective_k = self._apply_outpaint(request, mask)
         paths = self.model_loader.ensure_models(request.engine_version)
