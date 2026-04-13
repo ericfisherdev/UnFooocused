@@ -209,6 +209,80 @@
             </label>
         </fieldset>
 
+        <fieldset class="input-image__advanced-masking">
+            <legend class="text-label">Advanced masking</legend>
+
+            <label class="checkbox">
+                <input type="checkbox"
+                       data-testid="inpaint-advanced-masking-checkbox"
+                       x-model="inpaintAdvancedMaskingEnabled">
+                Enable advanced masking features
+            </label>
+
+            <div class="input-image__mask-generation-panel"
+                 data-testid="inpaint-mask-generation-panel"
+                 x-show="inpaintAdvancedMaskingEnabled"
+                 x-cloak>
+
+                <label class="checkbox">
+                    <input type="checkbox"
+                           data-testid="inpaint-invert-mask"
+                           x-model="inpaintInvertMask">
+                    Invert mask
+                </label>
+
+                <label class="text-label">
+                    <span>Mask generation model</span>
+                    <select class="select"
+                            data-testid="inpaint-mask-model-select"
+                            x-model="inpaintMaskModel">
+                        <option value="u2net">u2net</option>
+                        <option value="u2netp">u2netp</option>
+                        <option value="u2net_human_seg">u2net_human_seg</option>
+                        <option value="u2net_cloth_seg">u2net_cloth_seg</option>
+                        <option value="silueta">silueta</option>
+                        <option value="isnet-general-use">isnet-general-use</option>
+                        <option value="isnet-anime">isnet-anime</option>
+                        <option value="sam">sam</option>
+                    </select>
+                </label>
+
+                <label class="text-label"
+                       x-show="inpaintMaskModel === 'u2net_cloth_seg'"
+                       x-cloak>
+                    <span>Cloth category</span>
+                    <select class="select"
+                            data-testid="inpaint-mask-cloth-category-select"
+                            x-model="inpaintMaskClothCategory">
+                        <option value="full">full</option>
+                        <option value="upper">upper</option>
+                        <option value="lower">lower</option>
+                    </select>
+                </label>
+
+                <label class="text-label"
+                       x-show="inpaintMaskModel === 'sam'"
+                       x-cloak>
+                    <span>SAM model</span>
+                    <select class="select"
+                            data-testid="inpaint-mask-sam-model-select"
+                            x-model="inpaintMaskSamModel">
+                        <option value="vit_b">vit_b</option>
+                        <option value="vit_l">vit_l</option>
+                        <option value="vit_h">vit_h</option>
+                    </select>
+                </label>
+
+                <label class="text-label">
+                    <span>Upload mask image</span>
+                    <input type="file"
+                           accept="image/*"
+                           data-testid="inpaint-mask-image-upload"
+                           @change="onInpaintMaskUpload($event)">
+                </label>
+            </div>
+        </fieldset>
+
         <div class="input-image__canvas-wrapper" x-show="inpaintImage" x-cloak>
             <canvas x-ref="inpaintCanvas"
                     class="input-image__canvas"

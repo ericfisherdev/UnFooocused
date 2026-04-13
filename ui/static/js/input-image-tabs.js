@@ -47,6 +47,15 @@ document.addEventListener("alpine:init", () => {
         inpaintRespectiveField: INPAINT_MODE_DEFAULTS.default.respectiveField,
         inpaintErodeOrDilate: 0,
         inpaintDisableInitialLatent: INPAINT_MODE_DEFAULTS.default.disableInitialLatent,
+        // UNF-68 — advanced masking controls. Client-only state today;
+        // the server already accepts inpaint_advanced_masking_checkbox
+        // and invert_mask_checkbox in the request body.
+        inpaintAdvancedMaskingEnabled: false,
+        inpaintInvertMask: false,
+        inpaintMaskModel: "isnet-general-use",
+        inpaintMaskClothCategory: "full",
+        inpaintMaskSamModel: "vit_b",
+        inpaintMaskImageUpload: null,
         brushSize: 32,
         _drawing: false,
         _lastX: 0,
@@ -111,6 +120,34 @@ document.addEventListener("alpine:init", () => {
             this._readFileAsDataUrl(file).then((dataUrl) => {
                 this.inpaintImage = dataUrl;
             });
+        },
+
+        onInpaintMaskUpload(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            this._readFileAsDataUrl(file).then((dataUrl) => {
+                this.inpaintMaskImageUpload = dataUrl;
+                this._combineMasks(dataUrl);
+            });
+        },
+
+        // Composite an uploaded mask onto the drawn mask using element-wise
+        // max semantics (equivalent to np.maximum()) by drawing with the
+        // "lighten" composite operation. Uploaded-mask white pixels union
+        // with previously-brushed strokes.
+        _combineMasks(dataUrl) {
+            if (!this._maskCtx || !this._baseCanvas) return;
+            const img = new Image();
+            img.onload = () => {
+                const ctx = this._maskCtx;
+                const prev = ctx.globalCompositeOperation;
+                ctx.globalCompositeOperation = "lighten";
+                ctx.drawImage(img, 0, 0, this._baseCanvas.width, this._baseCanvas.height);
+                ctx.globalCompositeOperation = prev;
+                this._redrawComposite();
+                this._dispatchInpaint();
+            };
+            img.src = dataUrl;
         },
 
         _readFileAsDataUrl(file) {
