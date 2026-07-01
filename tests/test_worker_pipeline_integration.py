@@ -147,6 +147,24 @@ class CrashingVAEDecoder:
         raise AttributeError("'VAE' object has no attribute 'load_device'")
 
 
+class CrashesOnSecondCallVAEDecoder:
+    """Succeeds for the first image in a batch, then crashes on the second.
+
+    Used to verify that already-generated images survive an unexpected
+    exception partway through a multi-image batch (UNF-91 CodeRabbit finding).
+    """
+
+    def __init__(self) -> None:
+        self._calls = 0
+        self._fake = FakeVAEDecoder()
+
+    def decode(self, vae: Any, latent: Any) -> list[np.ndarray]:
+        self._calls += 1
+        if self._calls >= 2:
+            raise AttributeError("'VAE' object has no attribute 'load_device'")
+        return self._fake.decode(vae, latent)
+
+
 # ===========================================================================
 # Helpers — reuse from test_async_worker
 # ===========================================================================
@@ -767,6 +785,28 @@ class TestUnexpectedExceptionHandling:
         finish_events = [y for y in task2.yields if y[0] == "finish"]
         assert len(finish_events) == 1
         assert len(finish_events[0][1]) == 2  # image_number=2
+
+    def test_partial_results_preserved_when_later_image_crashes(self, tmp_path):
+        """Images already generated before an unexpected crash must not be lost.
+
+        task.image_number=2: image 0 succeeds and is saved to disk, then image 1
+        raises. task.results and a "finish" yield must still reflect image 0's
+        output — not silently discard it in favor of only the "error" yield.
+        """
+        from modules.async_worker import AsyncTask
+
+        worker, *_ = _make_worker_with_fakes(tmp_path, vae_decoder=CrashesOnSecondCallVAEDecoder())
+        task = AsyncTask(_minimal_args_list())
+
+        worker.process_task(task)
+
+        assert len(task.results) == 1
+        finish_events = [y for y in task.yields if y[0] == "finish"]
+        assert len(finish_events) == 1
+        assert finish_events[0][1] == task.results
+
+        error_events = [y for y in task.yields if y[0] == "error"]
+        assert len(error_events) == 1
 
 
 # ===========================================================================
