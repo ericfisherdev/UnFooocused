@@ -270,7 +270,7 @@ class Worker:
             self._run_generation(task)
         except Exception as exc:
             logger.exception("Unexpected error during task processing")
-            task.yields.append(("error", _format_gpu_error(str(exc))))
+            task.yields.append(("error", _format_generation_error(str(exc))))
         finally:
             task.processing = False
             current_task = None
@@ -381,7 +381,7 @@ class Worker:
         except RuntimeError as exc:
             error_msg = str(exc)
             logger.error("Pipeline error during generation: %s", error_msg)
-            task.yields.append(("error", _format_gpu_error(error_msg)))
+            task.yields.append(("error", _format_generation_error(error_msg)))
             return None
 
         if not results:
@@ -587,11 +587,15 @@ def _build_fooocus_metadata(
     return metadata
 
 
-def _format_gpu_error(error_msg: str) -> str:
-    """Convert a raw GPU/CUDA error message into a user-friendly string.
+def _format_generation_error(error_msg: str) -> str:
+    """Convert a raw exception message into a user-friendly error string.
+
+    Used for both GPU-specific failures (OOM) and any other unexpected
+    exception during task processing, so the message is always presentable
+    to the frontend.
 
     Args:
-        error_msg: The raw RuntimeError message string.
+        error_msg: The raw exception message string.
 
     Returns:
         A user-friendly error description.
