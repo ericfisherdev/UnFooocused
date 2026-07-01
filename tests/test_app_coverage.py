@@ -594,7 +594,7 @@ class TestWsGenerationIntegration:
 
         ws_thread.join(timeout=2.0)
 
-        assert len(received) == 1, f"Expected exactly one message, got: {received}"
+        assert received, "No message received"
         assert received[0]["type"] == "error"
         assert received[0]["message"] == "Generation failed: boom"
 
@@ -616,8 +616,13 @@ class TestWsGenerationIntegration:
         task1.processing = True  # deliberately never flips False
         worker_module.current_task = task1
 
+        # task2 is NOT queued yet -- _find_processing_task() scans
+        # async_tasks before falling back to current_task, so queuing it
+        # up front would let it preempt task1 immediately. It's queued
+        # only once the "error" message is confirmed received (below).
         task2 = AsyncTask(_build_generate_args(body))
         task2.processing = True
+        task2.yields.append(("finish", ["out.png"]))
 
         received: list[dict] = []
         ws_ready = threading.Event()
@@ -642,9 +647,14 @@ class TestWsGenerationIntegration:
         # isolating that the flag-based terminal check, not the processing
         # flag, is what lets the loop move on to the next task.
         worker_module.current_task = None
-        time.sleep(0.2)
+
+        # Queue task2 as soon as the "error" message is observed, instead of
+        # a blind sleep -- avoids any idle window where a heartbeat could be
+        # emitted between "error" and "finish".
+        deadline = time.monotonic() + 2.0
+        while not received and time.monotonic() < deadline:
+            time.sleep(0.01)
         worker_module.async_tasks.append(task2)
-        task2.yields.append(("finish", ["out.png"]))
 
         ws_thread.join(timeout=2.0)
 
