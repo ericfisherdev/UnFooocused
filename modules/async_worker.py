@@ -70,7 +70,7 @@ class AsyncTask:
 
     Attributes:
         yields: List of (flag, product) tuples for progress streaming.
-            flag is one of "preview", "results", "finish".
+            flag is one of "preview", "results", "finish", "error".
         results: List of output file paths.
         processing: True while the worker is actively processing this task.
         last_stop: Set to "stop" to request cancellation.
@@ -253,6 +253,12 @@ class Worker:
         events to ``task.yields``, saves images via ``modules.output``,
         and yields a final "finish" event with all output paths.
 
+        Any exception not already handled closer to its source (e.g. OOM
+        in ``_generate_with_pipeline``) is caught here and translated into
+        a terminal ("error", message) yield — this is the worker/UI
+        boundary, so an unhandled exception must never propagate silently
+        and leave the frontend waiting forever for a "finish" event.
+
         Args:
             task: The AsyncTask to process.
         """
@@ -262,6 +268,9 @@ class Worker:
 
         try:
             self._run_generation(task)
+        except Exception as exc:
+            logger.exception("Unexpected error during task processing")
+            task.yields.append(("error", _format_gpu_error(str(exc))))
         finally:
             task.processing = False
             current_task = None
