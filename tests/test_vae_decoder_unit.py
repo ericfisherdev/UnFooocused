@@ -153,14 +153,22 @@ def _make_vae_decoder(
     vae_decode_op: Any = None,
     vae_decode_tiled_op: Any = None,
     tiled_threshold: int = 2048,
+    gpu_loader: Any = None,
 ) -> Any:
-    """Build an LdmVAEDecoder with injected fakes."""
+    """Build an LdmVAEDecoder with injected fakes.
+
+    gpu_loader defaults to a no-op so unit tests never exercise the real
+    ldm_patched.modules.model_management call, which requires a real GPU
+    model object (see UNF-91 — decode() must delegate GPU loading to an
+    injected collaborator, not hardcode the ldm_patched import).
+    """
     from modules.infrastructure.vae_decoder import LdmVAEDecoder
 
     return LdmVAEDecoder(
         vae_decode_op=vae_decode_op or FakeVAEDecodeOp(),
         vae_decode_tiled_op=vae_decode_tiled_op or FakeVAEDecodeTiledOp(),
         tiled_threshold=tiled_threshold,
+        gpu_loader=gpu_loader or (lambda vae: None),
     )
 
 
@@ -415,3 +423,81 @@ class TestDecoderRepr:
     def test_latent_previewer_repr(self) -> None:
         previewer = _make_latent_previewer()
         assert "LdmLatentPreviewer" in repr(previewer)
+
+
+# ---------------------------------------------------------------------------
+# UNF-91: _load_vae_to_gpu must resolve vae.patcher, not the raw VAE wrapper
+# ---------------------------------------------------------------------------
+
+
+class TestLoadVaeToGpuResolvesPatcher:
+    """UNF-91: the default gpu_loader must load vae.patcher, not the bare
+    ldm_patched VAE wrapper.
+
+    ldm_patched's VAE wrapper has no ``load_device`` attribute of its own —
+    only its internal ``.patcher`` (a ModelPatcher) does. Passing the raw
+    VAE to load_models_gpu() crashes with
+    ``AttributeError: 'VAE' object has no attribute 'load_device'``.
+    """
+
+    def test_loads_patcher_when_present(self, monkeypatch) -> None:
+        import ldm_patched.modules.model_management as model_management
+        from modules.infrastructure.vae_decoder import _load_vae_to_gpu
+
+        calls: list[Any] = []
+        monkeypatch.setattr(model_management, "load_models_gpu", calls.append)
+
+        patcher = object()
+        vae = type("FakeVAE", (), {"patcher": patcher})()
+
+        _load_vae_to_gpu(vae)
+
+        assert calls == [[patcher]]
+
+    def test_falls_back_to_vae_when_no_patcher_attribute(self, monkeypatch) -> None:
+        import ldm_patched.modules.model_management as model_management
+        from modules.infrastructure.vae_decoder import _load_vae_to_gpu
+
+        calls: list[Any] = []
+        monkeypatch.setattr(model_management, "load_models_gpu", calls.append)
+
+        vae = object()  # no .patcher attribute — defensive fallback
+
+        _load_vae_to_gpu(vae)
+
+        assert calls == [[vae]]
+
+
+class TestDecoderUsesInjectedGpuLoader:
+    """UNF-91: LdmVAEDecoder.decode() delegates GPU loading to an injected
+    collaborator instead of hardcoding an ldm_patched import, so it stays
+    unit-testable without a GPU (Dependency Inversion Principle).
+    """
+
+    def test_decode_calls_gpu_loader_with_inner_vae(self) -> None:
+        calls: list[Any] = []
+        decoder = _make_vae_decoder(gpu_loader=calls.append)
+        latent = _make_fake_latent()
+
+        decoder.decode(vae="fake_vae", latent=latent)
+
+        assert calls == ["fake_vae"]
+
+    def test_decode_uses_real_loader_by_default(self, monkeypatch) -> None:
+        """Without an explicit gpu_loader, the production _load_vae_to_gpu is used."""
+        from modules.infrastructure.vae_decoder import LdmVAEDecoder
+
+        calls: list[Any] = []
+        monkeypatch.setattr(
+            "modules.infrastructure.vae_decoder._load_vae_to_gpu",
+            calls.append,
+        )
+        decoder = LdmVAEDecoder(
+            vae_decode_op=FakeVAEDecodeOp(),
+            vae_decode_tiled_op=FakeVAEDecodeTiledOp(),
+        )
+        latent = _make_fake_latent()
+
+        decoder.decode(vae="fake_vae", latent=latent)
+
+        assert calls == ["fake_vae"]

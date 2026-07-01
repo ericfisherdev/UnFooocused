@@ -92,6 +92,16 @@ class TestBuildYieldMessage:
         assert result is not None
         assert isinstance(result["images"][0], str)
 
+    def test_error_flag_returns_error_message(self) -> None:
+        """UNF-91: an 'error' yield must translate to a terminal error message."""
+        from ui.app import _build_yield_message
+
+        result = _build_yield_message("error", "Generation failed: boom")
+
+        assert result is not None
+        assert result["type"] == "error"
+        assert result["message"] == "Generation failed: boom"
+
 
 # ---------------------------------------------------------------------------
 # Unit tests: _encode_preview_image
@@ -545,6 +555,101 @@ class TestWsGenerationIntegration:
         message_types = [m["type"] for m in received]
         assert "preview" in message_types, f"No preview messages received. Got: {message_types}"
         assert "finish" in message_types, f"No finish message received. Got: {message_types}"
+
+    def test_websocket_receives_error_message(self, client) -> None:
+        """UNF-91: an 'error' yield is delivered to the client as a terminal message.
+
+        Without this, a crashed generation task never produces a "finish"
+        yield, so _build_yield_message must translate "error" into a
+        message the frontend can render (instead of returning None).
+        """
+        import threading
+        import time
+
+        import modules.async_worker as worker_module
+        from modules.async_worker import AsyncTask
+        from ui.app import _build_generate_args
+
+        body = {"prompt": "ws error test", "image_number": 1, "steps": 5, "seed": 42}
+        task = AsyncTask(_build_generate_args(body))
+        task.processing = True
+        worker_module.current_task = task
+
+        received: list[dict] = []
+        ws_ready = threading.Event()
+
+        def ws_reader():
+            import contextlib
+
+            with client.websocket_connect("/ws/generation") as ws, contextlib.suppress(Exception):
+                ws_ready.set()
+                received.append(ws.receive_json())
+
+        ws_thread = threading.Thread(target=ws_reader, daemon=True)
+        ws_thread.start()
+        ws_ready.wait(timeout=3.0)
+
+        time.sleep(0.2)
+        task.yields.append(("error", "Generation failed: boom"))
+
+        ws_thread.join(timeout=2.0)
+
+        assert len(received) == 1, f"Expected exactly one message, got: {received}"
+        assert received[0]["type"] == "error"
+        assert received[0]["message"] == "Generation failed: boom"
+
+    def test_websocket_error_flag_resets_active_task(self, client) -> None:
+        """UNF-91: 'error' must reset active_task like 'finish' does, even if
+        task.processing never flips False (e.g. a lagging or buggy state
+        update), so the WS loop moves on to the next task instead of
+        waiting forever on a task that already failed.
+        """
+        import threading
+        import time
+
+        import modules.async_worker as worker_module
+        from modules.async_worker import AsyncTask
+        from ui.app import _build_generate_args
+
+        body = {"prompt": "ws error reset test", "image_number": 1, "steps": 5, "seed": 42}
+        task1 = AsyncTask(_build_generate_args(body))
+        task1.processing = True  # deliberately never flips False
+        worker_module.current_task = task1
+
+        task2 = AsyncTask(_build_generate_args(body))
+        task2.processing = True
+
+        received: list[dict] = []
+        ws_ready = threading.Event()
+
+        def ws_reader():
+            with client.websocket_connect("/ws/generation") as ws:
+                ws_ready.set()
+                for _ in range(2):
+                    try:
+                        received.append(ws.receive_json())
+                    except Exception:
+                        break
+
+        ws_thread = threading.Thread(target=ws_reader, daemon=True)
+        ws_thread.start()
+        ws_ready.wait(timeout=3.0)
+
+        time.sleep(0.2)
+        task1.yields.append(("error", "Generation failed: boom"))
+        # current_task is cleared right away (as the real worker does in its
+        # finally block) even though task1.processing itself never flips —
+        # isolating that the flag-based terminal check, not the processing
+        # flag, is what lets the loop move on to the next task.
+        worker_module.current_task = None
+        time.sleep(0.2)
+        worker_module.async_tasks.append(task2)
+        task2.yields.append(("finish", ["out.png"]))
+
+        ws_thread.join(timeout=2.0)
+
+        message_types = [m["type"] for m in received]
+        assert message_types == ["error", "finish"], f"Expected error then finish, got: {message_types}"
 
     def test_websocket_rejects_mismatched_origin(self, client) -> None:
         """AC2: WebSocket rejects connections with mismatched origin."""
