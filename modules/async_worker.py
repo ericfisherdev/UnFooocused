@@ -288,31 +288,30 @@ class Worker:
 
         steps = task.effective_steps
         output_paths: list[str] = []
+        # Aliased onto the task immediately (same list object, not a copy) so
+        # images already generated survive even if a later image raises an
+        # unexpected exception that propagates past this method to
+        # process_task's error handler — without emitting a second terminal
+        # yield here, which would race the "error" yield in ws_generation.
+        task.results = output_paths
 
-        try:
-            for image_index in range(task.image_number):
-                if task.last_stop == "stop":
-                    logger.info("Generation cancelled at image %d/%d", image_index + 1, task.image_number)
-                    break
+        for image_index in range(task.image_number):
+            if task.last_stop == "stop":
+                logger.info("Generation cancelled at image %d/%d", image_index + 1, task.image_number)
+                break
 
-                if not is_browser_connected() and image_index > 0:
-                    logger.info(
-                        "Browser disconnected, skipping remaining images at %d/%d",
-                        image_index + 1,
-                        task.image_number,
-                    )
-                    break
+            if not is_browser_connected() and image_index > 0:
+                logger.info(
+                    "Browser disconnected, skipping remaining images at %d/%d", image_index + 1, task.image_number
+                )
+                break
 
-                filepath = self._generate_single_image(task, image_index, steps)
-                if filepath is None:
-                    break
-                output_paths.append(filepath)
-        finally:
-            # Runs even when an unexpected exception escapes the loop, so any
-            # images already generated are never silently dropped — the
-            # exception still propagates to process_task's error handler after.
-            task.results = output_paths
-            task.yields.append(("finish", output_paths))
+            filepath = self._generate_single_image(task, image_index, steps)
+            if filepath is None:
+                break
+            output_paths.append(filepath)
+
+        task.yields.append(("finish", output_paths))
 
     def _generate_single_image(
         self,

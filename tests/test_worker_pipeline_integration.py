@@ -790,8 +790,10 @@ class TestUnexpectedExceptionHandling:
         """Images already generated before an unexpected crash must not be lost.
 
         task.image_number=2: image 0 succeeds and is saved to disk, then image 1
-        raises. task.results and a "finish" yield must still reflect image 0's
-        output — not silently discard it in favor of only the "error" yield.
+        raises. task.results must still reflect image 0's output even though the
+        exception skips the normal end-of-loop "finish" yield entirely — only
+        one terminal yield ("error") is emitted, so ws_generation never has to
+        choose between two competing terminal messages.
         """
         from modules.async_worker import AsyncTask
 
@@ -801,9 +803,9 @@ class TestUnexpectedExceptionHandling:
         worker.process_task(task)
 
         assert len(task.results) == 1
+
         finish_events = [y for y in task.yields if y[0] == "finish"]
-        assert len(finish_events) == 1
-        assert finish_events[0][1] == task.results
+        assert len(finish_events) == 0
 
         error_events = [y for y in task.yields if y[0] == "error"]
         assert len(error_events) == 1
