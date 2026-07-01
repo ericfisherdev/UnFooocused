@@ -46,6 +46,9 @@ VAEDecodeTiledOp = Any
 RearrangeFn = Callable[..., Any]
 """Callable that rearranges tensor from (B, C, H, W) to (B, H, W, C) and extracts first sample."""
 
+GPULoaderFn = Callable[[Any], None]
+"""Callable that loads a VAE (or its ModelPatcher) onto the GPU before decode."""
+
 
 # ---------------------------------------------------------------------------
 # LdmVAEDecoder — concrete VAEDecoder adapter
@@ -64,9 +67,12 @@ class LdmVAEDecoder:
         vae_decode_tiled_op: Object wrapping ldm_patched's VAEDecodeTiled node.
         tiled_threshold: Pixel threshold above which tiled decoding is used.
             Images where either dimension exceeds this use tiled decoding.
+        gpu_loader: Callable that loads the VAE onto the GPU before decode.
+            Defaults to the production ``_load_vae_to_gpu``. Injectable so
+            unit tests can run without a GPU (Dependency Inversion).
     """
 
-    __slots__ = ("_tiled_threshold", "_vae_decode_op", "_vae_decode_tiled_op")
+    __slots__ = ("_gpu_loader", "_tiled_threshold", "_vae_decode_op", "_vae_decode_tiled_op")
 
     def __init__(
         self,
@@ -74,10 +80,12 @@ class LdmVAEDecoder:
         vae_decode_op: VAEDecodeOp,
         vae_decode_tiled_op: VAEDecodeTiledOp,
         tiled_threshold: int = _DEFAULT_TILED_THRESHOLD,
+        gpu_loader: GPULoaderFn | None = None,
     ) -> None:
         self._vae_decode_op = vae_decode_op
         self._vae_decode_tiled_op = vae_decode_tiled_op
         self._tiled_threshold = tiled_threshold
+        self._gpu_loader = gpu_loader if gpu_loader is not None else _load_vae_to_gpu
 
     def __repr__(self) -> str:
         return f"LdmVAEDecoder(tiled_threshold={self._tiled_threshold})"
@@ -108,7 +116,7 @@ class LdmVAEDecoder:
 
         # On low VRAM systems, the UNet must be offloaded before VAE decode.
         # Loading the VAE via model_management offloads other models automatically.
-        _load_vae_to_gpu(inner_vae)
+        self._gpu_loader(inner_vae)
 
         image_batch = self._decode_with_inference_mode(inner_vae, latent, use_tiled)
         return _pytorch_to_numpy(image_batch)
@@ -265,11 +273,17 @@ def _load_vae_to_gpu(vae: Any) -> None:
     On low VRAM systems, the UNet occupies most GPU memory after sampling.
     This explicitly loads the VAE via model_management, which auto-offloads
     the UNet to make room.
+
+    ldm_patched's VAE wrapper has no ``load_device`` attribute of its own —
+    only its internal ``.patcher`` (a ModelPatcher) does, matching the
+    pattern ldm_patched.modules.sd.VAE uses internally. Falls back to the
+    raw vae object when it has no ``.patcher`` (e.g. test doubles).
     """
     try:
         import ldm_patched.modules.model_management
 
-        ldm_patched.modules.model_management.load_models_gpu([vae])
+        patcher = getattr(vae, "patcher", vae)
+        ldm_patched.modules.model_management.load_models_gpu([patcher])
     except ImportError:
         pass
 

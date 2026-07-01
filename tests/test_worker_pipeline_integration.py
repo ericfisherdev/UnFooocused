@@ -135,6 +135,36 @@ class OOMSampler:
         raise RuntimeError("CUDA out of memory. Tried to allocate 2.00 GiB")
 
 
+class CrashingVAEDecoder:
+    """Simulates the real UNF-91 bug: VAE decode crashes with AttributeError.
+
+    This is NOT a RuntimeError, so it is not caught by the OOM-specific
+    handling in Worker._generate_with_pipeline — it must be caught at the
+    process_task boundary instead.
+    """
+
+    def decode(self, vae: Any, latent: Any) -> list[np.ndarray]:
+        raise AttributeError("'VAE' object has no attribute 'load_device'")
+
+
+class CrashesOnSecondCallVAEDecoder:
+    """Succeeds for the first image in a batch, then crashes on the second.
+
+    Used to verify that already-generated images survive an unexpected
+    exception partway through a multi-image batch (UNF-91 CodeRabbit finding).
+    """
+
+    def __init__(self) -> None:
+        self._calls = 0
+        self._fake = FakeVAEDecoder()
+
+    def decode(self, vae: Any, latent: Any) -> list[np.ndarray]:
+        self._calls += 1
+        if self._calls >= 2:
+            raise AttributeError("'VAE' object has no attribute 'load_device'")
+        return self._fake.decode(vae, latent)
+
+
 # ===========================================================================
 # Helpers — reuse from test_async_worker
 # ===========================================================================
@@ -695,6 +725,90 @@ class TestOOMHandling:
         finish_events = [y for y in task2.yields if y[0] == "finish"]
         assert len(finish_events) == 1
         assert len(finish_events[0][1]) == 2  # image_number=2
+
+
+# ===========================================================================
+# UNF-91: unexpected (non-RuntimeError) exceptions must yield a terminal
+# error instead of propagating and silently hanging the generation UI
+# ===========================================================================
+
+
+@_requires_pil
+class TestUnexpectedExceptionHandling:
+    """UNF-91: any exception during task processing yields a terminal error."""
+
+    def test_unexpected_exception_yields_error_event(self, tmp_path):
+        """An AttributeError (e.g. the real VAE decode bug) produces an error yield."""
+        from modules.async_worker import AsyncTask
+
+        worker, *_ = _make_worker_with_fakes(tmp_path, vae_decoder=CrashingVAEDecoder())
+        task = AsyncTask(_minimal_args_list())
+
+        worker.process_task(task)  # must not raise
+
+        error_events = [y for y in task.yields if y[0] == "error"]
+        assert len(error_events) == 1
+        assert "load_device" in str(error_events[0][1])
+
+    def test_unexpected_exception_does_not_propagate(self, tmp_path):
+        """process_task() must catch unexpected exceptions, not let them propagate."""
+        from modules.async_worker import AsyncTask
+
+        worker, *_ = _make_worker_with_fakes(tmp_path, vae_decoder=CrashingVAEDecoder())
+        task = AsyncTask(_minimal_args_list())
+
+        worker.process_task(task)
+
+    def test_unexpected_exception_resets_task_processing_state(self, tmp_path):
+        """task.processing must be reset to False even after an unexpected crash."""
+        from modules.async_worker import AsyncTask
+
+        worker, *_ = _make_worker_with_fakes(tmp_path, vae_decoder=CrashingVAEDecoder())
+        task = AsyncTask(_minimal_args_list())
+
+        worker.process_task(task)
+
+        assert task.processing is False
+
+    def test_worker_remains_usable_after_unexpected_exception(self, tmp_path):
+        """Worker can still process subsequent tasks after an unexpected crash."""
+        from modules.async_worker import AsyncTask
+
+        worker, *_ = _make_worker_with_fakes(tmp_path, vae_decoder=CrashingVAEDecoder())
+        task1 = AsyncTask(_minimal_args_list())
+        worker.process_task(task1)
+
+        worker._pipeline._vae_decoder = FakeVAEDecoder()
+        task2 = AsyncTask(_minimal_args_list())
+        worker.process_task(task2)
+
+        finish_events = [y for y in task2.yields if y[0] == "finish"]
+        assert len(finish_events) == 1
+        assert len(finish_events[0][1]) == 2  # image_number=2
+
+    def test_partial_results_preserved_when_later_image_crashes(self, tmp_path):
+        """Images already generated before an unexpected crash must not be lost.
+
+        task.image_number=2: image 0 succeeds and is saved to disk, then image 1
+        raises. task.results must still reflect image 0's output even though the
+        exception skips the normal end-of-loop "finish" yield entirely — only
+        one terminal yield ("error") is emitted, so ws_generation never has to
+        choose between two competing terminal messages.
+        """
+        from modules.async_worker import AsyncTask
+
+        worker, *_ = _make_worker_with_fakes(tmp_path, vae_decoder=CrashesOnSecondCallVAEDecoder())
+        task = AsyncTask(_minimal_args_list())
+
+        worker.process_task(task)
+
+        assert len(task.results) == 1
+
+        finish_events = [y for y in task.yields if y[0] == "finish"]
+        assert len(finish_events) == 0
+
+        error_events = [y for y in task.yields if y[0] == "error"]
+        assert len(error_events) == 1
 
 
 # ===========================================================================

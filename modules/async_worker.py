@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+import re
 from typing import TYPE_CHECKING, Any
 
 from modules.heartbeat import is_browser_connected
@@ -70,7 +71,7 @@ class AsyncTask:
 
     Attributes:
         yields: List of (flag, product) tuples for progress streaming.
-            flag is one of "preview", "results", "finish".
+            flag is one of "preview", "results", "finish", "error".
         results: List of output file paths.
         processing: True while the worker is actively processing this task.
         last_stop: Set to "stop" to request cancellation.
@@ -253,6 +254,12 @@ class Worker:
         events to ``task.yields``, saves images via ``modules.output``,
         and yields a final "finish" event with all output paths.
 
+        Any exception not already handled closer to its source (e.g. OOM
+        in ``_generate_with_pipeline``) is caught here and translated into
+        a terminal ("error", message) yield — this is the worker/UI
+        boundary, so an unhandled exception must never propagate silently
+        and leave the frontend waiting forever for a "finish" event.
+
         Args:
             task: The AsyncTask to process.
         """
@@ -262,6 +269,9 @@ class Worker:
 
         try:
             self._run_generation(task)
+        except Exception as exc:
+            logger.exception("Unexpected error during task processing")
+            task.yields.append(("error", _format_generation_error(str(exc))))
         finally:
             task.processing = False
             current_task = None
@@ -279,6 +289,12 @@ class Worker:
 
         steps = task.effective_steps
         output_paths: list[str] = []
+        # Aliased onto the task immediately (same list object, not a copy) so
+        # images already generated survive even if a later image raises an
+        # unexpected exception that propagates past this method to
+        # process_task's error handler — without emitting a second terminal
+        # yield here, which would race the "error" yield in ws_generation.
+        task.results = output_paths
 
         for image_index in range(task.image_number):
             if task.last_stop == "stop":
@@ -296,7 +312,6 @@ class Worker:
                 break
             output_paths.append(filepath)
 
-        task.results = output_paths
         task.yields.append(("finish", output_paths))
 
     def _generate_single_image(
@@ -372,7 +387,7 @@ class Worker:
         except RuntimeError as exc:
             error_msg = str(exc)
             logger.error("Pipeline error during generation: %s", error_msg)
-            task.yields.append(("error", _format_gpu_error(error_msg)))
+            task.yields.append(("error", _format_generation_error(error_msg)))
             return None
 
         if not results:
@@ -578,17 +593,21 @@ def _build_fooocus_metadata(
     return metadata
 
 
-def _format_gpu_error(error_msg: str) -> str:
-    """Convert a raw GPU/CUDA error message into a user-friendly string.
+def _format_generation_error(error_msg: str) -> str:
+    """Convert a raw exception message into a user-friendly error string.
+
+    Used for both GPU-specific failures (OOM) and any other unexpected
+    exception during task processing, so the message is always presentable
+    to the frontend.
 
     Args:
-        error_msg: The raw RuntimeError message string.
+        error_msg: The raw exception message string.
 
     Returns:
         A user-friendly error description.
     """
     lower = error_msg.lower()
-    if "out of memory" in lower or "oom" in lower:
+    if "out of memory" in lower or re.search(r"\boom\b", lower):
         return f"GPU out of memory — try a lower resolution or fewer steps. Details: {error_msg}"
     return f"Generation failed: {error_msg}"
 

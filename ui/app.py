@@ -456,6 +456,11 @@ def _build_yield_message(flag: str, product) -> dict | None:
             "type": "finish",
             "images": [str(p) if not isinstance(p, str) else p for p in product],
         }
+    if flag == "error":
+        return {
+            "type": "error",
+            "message": str(product),
+        }
     return None
 
 
@@ -515,7 +520,7 @@ async def ws_generation(websocket: WebSocket) -> None:
     Stream generation progress to the client.
 
     Polls the active task's yields list and forwards them as JSON messages.
-    Message types: preview, results, finish, heartbeat.
+    Message types: preview, results, finish, error, heartbeat.
     """
     if _reject_mismatched_origin(websocket):
         logger.warning(
@@ -561,6 +566,12 @@ async def ws_generation(websocket: WebSocket) -> None:
                 if msg is not None:
                     await websocket.send_json(msg)
 
+                # Only "finish" resets active_task here. An "error" yield may
+                # or may not be followed by a "finish" for the same task (OOM
+                # yields both; an unhandled exception yields only "error") —
+                # the outer loop's `not active_task.processing` check above
+                # already detects completion once the worker's finally block
+                # runs, regardless of which flag was yielded last.
                 if flag == "finish":
                     active_task = None
                     yield_index = 0
