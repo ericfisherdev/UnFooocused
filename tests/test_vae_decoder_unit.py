@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import pytest
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -441,6 +442,8 @@ class TestLoadVaeToGpuResolvesPatcher:
     """
 
     def test_loads_patcher_when_present(self, monkeypatch) -> None:
+        pytest.importorskip("torch", reason="ldm_patched deps required for model_management tests")
+        pytest.importorskip("psutil", reason="ldm_patched deps required for model_management tests")
         import ldm_patched.modules.model_management as model_management
         from modules.infrastructure.vae_decoder import _load_vae_to_gpu
 
@@ -455,6 +458,8 @@ class TestLoadVaeToGpuResolvesPatcher:
         assert calls == [[patcher]]
 
     def test_falls_back_to_vae_when_no_patcher_attribute(self, monkeypatch) -> None:
+        pytest.importorskip("torch", reason="ldm_patched deps required for model_management tests")
+        pytest.importorskip("psutil", reason="ldm_patched deps required for model_management tests")
         import ldm_patched.modules.model_management as model_management
         from modules.infrastructure.vae_decoder import _load_vae_to_gpu
 
