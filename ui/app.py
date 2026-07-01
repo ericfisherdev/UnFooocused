@@ -566,7 +566,13 @@ async def ws_generation(websocket: WebSocket) -> None:
                 if msg is not None:
                     await websocket.send_json(msg)
 
-                if flag in ("finish", "error"):
+                # Only "finish" resets active_task here. An "error" yield may
+                # or may not be followed by a "finish" for the same task (OOM
+                # yields both; an unhandled exception yields only "error") —
+                # the outer loop's `not active_task.processing` check above
+                # already detects completion once the worker's finally block
+                # runs, regardless of which flag was yielded last.
+                if flag == "finish":
                     active_task = None
                     yield_index = 0
             else:

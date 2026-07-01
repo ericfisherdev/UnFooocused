@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+import re
 from typing import TYPE_CHECKING, Any
 
 from modules.heartbeat import is_browser_connected
@@ -606,7 +607,7 @@ def _format_generation_error(error_msg: str) -> str:
         A user-friendly error description.
     """
     lower = error_msg.lower()
-    if "out of memory" in lower or "oom" in lower:
+    if "out of memory" in lower or re.search(r"\boom\b", lower):
         return f"GPU out of memory — try a lower resolution or fewer steps. Details: {error_msg}"
     return f"Generation failed: {error_msg}"
 

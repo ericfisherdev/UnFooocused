@@ -598,11 +598,17 @@ class TestWsGenerationIntegration:
         assert received[0]["type"] == "error"
         assert received[0]["message"] == "Generation failed: boom"
 
-    def test_websocket_error_flag_resets_active_task(self, client) -> None:
-        """UNF-91: 'error' must reset active_task like 'finish' does, even if
-        task.processing never flips False (e.g. a lagging or buggy state
-        update), so the WS loop moves on to the next task instead of
-        waiting forever on a task that already failed.
+    def test_websocket_error_only_task_advances_to_next_task(self, client) -> None:
+        """UNF-91: an unhandled-exception task (only 'error', never 'finish')
+        must not block the WS loop from picking up the next task.
+
+        Matches the real Worker.process_task(): its `finally` block flips
+        task.processing to False in the same thread, right after the
+        "error" yield is appended -- this test mirrors that ordering rather
+        than the yield-index flag alone, since ws_generation relies on the
+        outer `not active_task.processing` check (not the "error" flag) to
+        detect this case -- see test_websocket_oom_style_error_then_finish_
+        delivered_in_order for why "error" itself must NOT reset the task.
         """
         import threading
         import time
@@ -613,7 +619,7 @@ class TestWsGenerationIntegration:
 
         body = {"prompt": "ws error reset test", "image_number": 1, "steps": 5, "seed": 42}
         task1 = AsyncTask(_build_generate_args(body))
-        task1.processing = True  # deliberately never flips False
+        task1.processing = True
         worker_module.current_task = task1
 
         # task2 is NOT queued yet -- _find_processing_task() scans
@@ -642,19 +648,69 @@ class TestWsGenerationIntegration:
 
         time.sleep(0.2)
         task1.yields.append(("error", "Generation failed: boom"))
-        # current_task is cleared right away (as the real worker does in its
-        # finally block) even though task1.processing itself never flips —
-        # isolating that the flag-based terminal check, not the processing
-        # flag, is what lets the loop move on to the next task.
+        # Mirrors process_task's finally block: processing flips False and
+        # current_task clears right after the terminal yield is appended.
+        task1.processing = False
         worker_module.current_task = None
 
         # Queue task2 as soon as the "error" message is observed, instead of
         # a blind sleep -- avoids any idle window where a heartbeat could be
-        # emitted between "error" and "finish".
+        # emitted between "error" and task2's "finish".
         deadline = time.monotonic() + 2.0
         while not received and time.monotonic() < deadline:
             time.sleep(0.01)
         worker_module.async_tasks.append(task2)
+
+        ws_thread.join(timeout=2.0)
+
+        message_types = [m["type"] for m in received]
+        assert message_types == ["error", "finish"], f"Expected error then finish, got: {message_types}"
+
+    def test_websocket_oom_style_error_then_finish_delivered_in_order(self, client) -> None:
+        """UNF-91: a task that yields both 'error' and 'finish' (the existing
+        OOM contract -- see TestOOMHandling.test_oom_still_yields_finish)
+        must have BOTH messages delivered for the same task, in order.
+
+        This is why ws_generation must not reset active_task on "error"
+        alone: doing so would drop the "finish" that follows for tasks like
+        OOM where the worker intentionally still reports partial results.
+        """
+        import threading
+        import time
+
+        import modules.async_worker as worker_module
+        from modules.async_worker import AsyncTask
+        from ui.app import _build_generate_args
+
+        body = {"prompt": "ws oom-style test", "image_number": 1, "steps": 5, "seed": 42}
+        task = AsyncTask(_build_generate_args(body))
+        task.processing = True
+        worker_module.current_task = task
+
+        received: list[dict] = []
+        ws_ready = threading.Event()
+
+        def ws_reader():
+            with client.websocket_connect("/ws/generation") as ws:
+                ws_ready.set()
+                for _ in range(2):
+                    try:
+                        received.append(ws.receive_json())
+                    except Exception:
+                        break
+
+        ws_thread = threading.Thread(target=ws_reader, daemon=True)
+        ws_thread.start()
+        ws_ready.wait(timeout=3.0)
+
+        time.sleep(0.2)
+        task.yields.append(("error", "GPU out of memory — try a lower resolution"))
+        # "finish" is appended afterward, exactly as _run_generation() does
+        # after an OOM RuntimeError breaks the image loop -- task.processing
+        # only flips False once both yields exist, matching the real Worker.
+        task.yields.append(("finish", []))
+        task.processing = False
+        worker_module.current_task = None
 
         ws_thread.join(timeout=2.0)
 
